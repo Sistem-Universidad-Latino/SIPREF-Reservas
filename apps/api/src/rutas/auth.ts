@@ -602,6 +602,48 @@ export async function rutasAuth(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // 4b) Actualizar perfil de sesión activa (PATCH /api/auth/yo)
+  app.patch(
+    '/api/auth/yo',
+    { preHandler: [requerirSesionAprobada] },
+    async (request) => {
+      const u = request.usuario!;
+      const esquemaPerfil = z.object({
+        nombre: z.string().trim().min(2, 'El nombre debe tener al menos 2 caracteres').max(150),
+      });
+      const datos = esquemaPerfil.parse(request.body);
+      const pool = obtenerPool();
+      await pool.query(
+        `UPDATE reservas_usuarios SET nombre = $1 WHERE sub = $2`,
+        [datos.nombre, u.sub],
+      );
+      return {
+        sub: u.sub,
+        nombre: datos.nombre,
+        correo: u.correo,
+        fotoUrl: u.fotoUrl,
+        rol: u.rol,
+        estado: u.estado,
+      };
+    },
+  );
+
+  // 4c) Eliminar cuenta de usuario (DELETE /api/auth/yo)
+  app.delete(
+    '/api/auth/yo',
+    { preHandler: [requerirSesionAprobada] },
+    async (request, reply) => {
+      const u = request.usuario!;
+      const pool = obtenerPool();
+      await pool.query(
+        `DELETE FROM reservas_usuarios WHERE sub = $1`,
+        [u.sub],
+      );
+      limpiarCookiesAutenticacion(reply);
+      return reply.status(204).send();
+    },
+  );
+
   // 5) Cerrar sesión (/api/auth/salir)
   app.post('/api/auth/salir', async (request, reply) => {
     const tokenOpaco = request.cookies?.[COOKIE_SESION];

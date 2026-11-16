@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDays,
-  History,
   LogOut,
   Menu,
   PlusCircle,
@@ -12,7 +11,7 @@ import {
 import { salir, useYo } from '../api/consultas';
 import { esApiError } from '../api/cliente';
 import { obtenerEtiquetaRol } from '../utilidades/catalogos';
-import logoUlatino from '../assets/logo-ulatino.svg';
+import logoUlatino from '../assets/logo.png';
 
 export function DisenoAutenticado() {
   const { data: yo, isLoading, error } = useYo();
@@ -23,10 +22,10 @@ export function DisenoAutenticado() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-fondo flex items-center justify-center p-6">
+      <div className="min-h-screen bg-[#faf9fc] flex items-center justify-center p-6">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 rounded-full border-4 border-navy/20 border-t-amber animate-spin" />
-          <p className="text-sm font-medium text-texto-suave">
+          <div className="h-10 w-10 rounded-full border-4 border-[#244275]/20 border-t-[#fdbb11] animate-spin" />
+          <p className="text-sm font-medium text-slate-500">
             Verificando sesión institucional...
           </p>
         </div>
@@ -66,42 +65,37 @@ export function DisenoAutenticado() {
 
   const enlaces = [
     { a: '/calendario', etiqueta: 'Calendario', icono: CalendarDays },
-    { a: '/historial', etiqueta: 'Historial', icono: History },
     { a: '/reservaciones/nueva', etiqueta: 'Nueva reservación', icono: PlusCircle },
   ];
 
   const contenidoSidebar = (
-    <div className="flex h-full flex-col bg-navy text-white">
-      {/* Cabecera institucional */}
-      <div className="flex items-center justify-between gap-3 border-b border-navy-600 px-5 py-5">
-        <div className="flex items-center gap-3">
+    <div className="flex h-full flex-col bg-[#244275] border-r border-[#30538f] shadow-2xl text-white">
+      {/* Botón cerrar en móvil */}
+      <button
+        type="button"
+        onClick={() => setMenuAbierto(false)}
+        aria-label="Cerrar menú lateral"
+        className="absolute top-4 right-4 text-white/60 hover:text-white lg:hidden bg-white/5 p-2 rounded-lg"
+      >
+        <X className="h-5 w-5" />
+      </button>
+
+      {/* Logo centrado arriba como en SIPREF */}
+      <div className="px-6 py-10 w-full flex flex-col items-center justify-center">
+        <div className="relative flex flex-col items-center group cursor-default">
           <img
             src={logoUlatino}
-            alt="Escudo Universidad Latino"
-            className="h-10 w-10 shrink-0 rounded-lg bg-navy-800 p-0.5"
+            alt="Universidad Latino Logo"
+            className="w-28 h-auto object-contain drop-shadow-[0_0_8px_rgba(255,255,255,0.7)] group-hover:drop-shadow-[0_0_15px_rgba(253,187,17,0.8)] mb-5 relative z-10 group-hover:scale-105 transition-all duration-500"
           />
-          <div>
-            <p className="text-base font-bold tracking-tight text-white leading-tight">
-              SIPREF Reservas
-            </p>
-            <p className="text-xs font-medium text-amber-300">Universidad Latino</p>
-          </div>
+          <p className="text-transparent bg-clip-text bg-gradient-to-r from-white to-[#fdbb11] text-[12px] uppercase tracking-[0.28em] font-black text-center drop-shadow-sm">
+            SIPREF RESERVAS
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setMenuAbierto(false)}
-          aria-label="Cerrar menú lateral"
-          className="lg:hidden rounded-lg p-1.5 text-navy-200 hover:bg-navy-600 hover:text-white"
-        >
-          <X className="h-5 w-5" />
-        </button>
       </div>
 
       {/* Navegación principal */}
-      <nav aria-label="Menú principal" className="flex-1 space-y-1.5 px-3 py-5">
-        <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-navy-300">
-          Gestión de espacios
-        </p>
+      <nav aria-label="Menú principal" className="flex-1 px-5 mt-2 space-y-2">
         {enlaces.map((item) => {
           const Icono = item.icono;
           return (
@@ -110,100 +104,140 @@ export function DisenoAutenticado() {
               to={item.a}
               onClick={() => setMenuAbierto(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
+                `rounded-2xl flex items-center gap-3.5 py-3 px-5 transition-all duration-300 ${
                   isActive
-                    ? 'bg-amber text-navy-900 font-semibold shadow-sm'
-                    : 'text-navy-100 hover:bg-navy-600/80 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#fdbb11] to-[#e8a906] text-[#0e2045] shadow-lg shadow-[#fdbb11]/20 font-black translate-x-1'
+                    : 'text-[#c5c6cf] hover:bg-white/5 hover:text-white font-semibold group hover:translate-x-1'
                 }`
               }
             >
-              <Icono className="h-4 w-4 shrink-0" />
-              <span>{item.etiqueta}</span>
+              {({ isActive }) => (
+                <>
+                  <Icono
+                    className={`h-5 w-5 shrink-0 ${
+                      isActive
+                        ? ''
+                        : 'opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-transform'
+                    }`}
+                  />
+                  <span className="text-sm tracking-wide">{item.etiqueta}</span>
+                </>
+              )}
             </NavLink>
           );
         })}
       </nav>
 
-      {/* Tarjeta de usuario autenticado */}
-      <div className="border-t border-navy-600 p-4 space-y-3 bg-navy-800/60">
-        <div className="flex items-center gap-3">
-          {yo.fotoUrl ? (
-            <img
-              src={yo.fotoUrl}
-              alt={yo.nombre}
-              className="h-10 w-10 rounded-full object-cover ring-2 ring-amber/70 shrink-0"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber text-navy-900 text-xs font-bold ring-2 ring-amber/40">
-              {iniciales || 'UL'}
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">{yo.nombre}</p>
-            <p className="truncate text-xs text-amber-300 font-medium">
-              {obtenerEtiquetaRol(yo.rol)}
-            </p>
-            <p className="truncate text-[11px] text-navy-200">{yo.correo}</p>
-          </div>
-        </div>
-
+      {/* Botón de Cerrar Sesión abajo como en SIPREF */}
+      <div className="px-5 pb-8 mt-auto">
         <button
           type="button"
           onClick={manejarSalir}
           disabled={cerrandoSesion}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-navy-500 bg-navy-700/80 px-3 py-2 text-xs font-semibold text-navy-100 transition hover:bg-navy-600 hover:text-white disabled:opacity-50"
+          className="w-full text-[#c5c6cf] hover:bg-red-500/10 hover:text-red-400 rounded-2xl flex items-center gap-3.5 py-3 px-5 transition-all duration-300 group hover:translate-x-1 disabled:opacity-50"
         >
-          <LogOut className="h-3.5 w-3.5" />
-          <span>{cerrandoSesion ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
+          <LogOut className="h-5 w-5 shrink-0 opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-transform" />
+          <span className="font-semibold text-sm tracking-wide">
+            {cerrandoSesion ? 'Cerrando sesión...' : 'Cerrar Sesión'}
+          </span>
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-fondo flex">
+    <div className="bg-[#faf9fc] text-[#1b1c1e] antialiased flex flex-col min-h-screen">
+      {/* Overlay oscuro para móvil */}
+      {menuAbierto && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity"
+          onClick={() => setMenuAbierto(false)}
+        />
+      )}
+
+      {/* Header superior blanco fijo, igual que SIPREF */}
+      <header className="bg-white border-b border-[#c5c6cf]/30 flex justify-between items-center px-3 sm:px-8 py-3 h-16 z-30 fixed top-0 right-0 left-0 lg:left-64 shadow-sm transition-all duration-300">
+        {/* Botón Menú y Logo (Izquierda - Solo Móvil) */}
+        <div className="flex items-center gap-2 sm:gap-3 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMenuAbierto(true)}
+            aria-label="Abrir menú de navegación"
+            className="p-1.5 hover:bg-slate-100 rounded-md shrink-0"
+          >
+            <Menu className="h-6 w-6 text-[#1c355e]" />
+          </button>
+          <img
+            src={logoUlatino}
+            alt="Universidad Latino Logo"
+            className="h-8 object-contain shrink-0"
+          />
+        </div>
+
+        {/* Indicador institucional en escritorio */}
+        <div className="hidden lg:flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-white px-4 py-1.5 rounded-full border border-[#c5c6cf]/30 shadow-sm">
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1c355e]" />
+            <span className="text-[11px] font-medium text-slate-500 tracking-wide uppercase">
+              Universidad Latino ·{' '}
+              <span className="font-bold text-[#1c355e]">SIPREF Reservas</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Perfil del Usuario arriba a la derecha (siempre visible y configurable como SIPREF) */}
+        <Link
+          to="/configuracion-perfil"
+          title="Configuración de Perfil"
+          className="flex items-center gap-3 ml-auto pl-3 lg:border-l lg:border-[#c5c6cf]/30 shrink-0 group cursor-pointer rounded-lg py-1 pr-1 transition hover:bg-slate-50"
+        >
+          <div className="flex flex-col items-end justify-center min-w-0 hidden sm:flex">
+            <p className="text-xs sm:text-sm font-bold text-[#1b1c1e] leading-tight truncate max-w-[160px] lg:max-w-[220px] group-hover:text-[#244275] transition-colors">
+              {yo.nombre}
+            </p>
+            <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-wider">
+              {obtenerEtiquetaRol(yo.rol)}
+            </p>
+          </div>
+          {yo.fotoUrl ? (
+            <img
+              src={yo.fotoUrl}
+              alt={yo.nombre}
+              referrerPolicy="no-referrer"
+              className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full object-cover border border-[#c5c6cf]/40 shadow-sm group-hover:scale-105 transition-transform"
+            />
+          ) : (
+            <div className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 rounded-full bg-[#0e2045] text-white flex items-center justify-center border border-[#c5c6cf]/30 font-bold text-xs sm:text-sm uppercase shadow-sm group-hover:scale-105 group-hover:bg-[#1c355e] transition-all">
+              {iniciales || 'UL'}
+            </div>
+          )}
+        </Link>
+      </header>
+
       {/* Sidebar fijo en escritorio */}
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:block lg:w-64">
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:block lg:w-64">
         {contenidoSidebar}
       </aside>
 
       {/* Drawer móvil / tablet */}
       {menuAbierto && (
-        <div
-          className="fixed inset-0 z-40 flex lg:hidden bg-navy-900/60 backdrop-blur-[1px]"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setMenuAbierto(false);
-          }}
-        >
-          <aside className="w-72 max-w-[85vw] h-full shadow-flotante">{contenidoSidebar}</aside>
-        </div>
+        <aside className="fixed inset-y-0 left-0 z-50 w-64 lg:hidden">
+          {contenidoSidebar}
+        </aside>
       )}
 
       {/* Contenido principal */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
-        {/* Barra superior para móvil/tablet */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-borde bg-navy px-4 py-3 text-white lg:hidden">
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => setMenuAbierto(true)}
-              aria-label="Abrir menú de navegación"
-              className="rounded-lg p-1.5 text-navy-100 hover:bg-navy-600"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <img src={logoUlatino} alt="UL" className="h-7 w-7" />
-            <span className="text-sm font-bold">SIPREF Reservas</span>
-          </div>
-          <span className="rounded-full bg-amber/20 border border-amber/40 px-2.5 py-0.5 text-[11px] font-semibold text-amber-200">
-            {obtenerEtiquetaRol(yo.rol)}
-          </span>
-        </header>
-
+      <div className="flex flex-1 flex-col pt-16 min-w-0 lg:pl-64">
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
           <Outlet />
         </main>
+
+        {/* Footer institucional como SIPREF */}
+        <footer className="bg-[#1c2738] w-full py-4 px-4 sm:px-8 flex justify-between items-center border-t border-white/5 mt-auto">
+          <div className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em]">
+            © 2026 UNIVERSIDAD LATINO - SIPREF RESERVAS
+          </div>
+        </footer>
       </div>
     </div>
   );

@@ -819,6 +819,48 @@ export async function manejarPeticionMock<T>(
     return yo as T;
   }
 
+  // 5b. Auth: PATCH /api/auth/yo
+  if (pathname === '/api/auth/yo' && method === 'PATCH') {
+    if (!auth.autenticado) {
+      throw new ApiError(401, 'NO_AUTENTICADO', 'Tu sesión expiró. Vuelve a iniciar sesión.');
+    }
+    if (auth.estado !== 'APROBADA') {
+      throw new ApiError(403, 'ACCESO_NO_APROBADO', 'Tu acceso aún no está aprobado.');
+    }
+    const entrada = (body ?? {}) as { nombre?: string };
+    const nombreLimpio = (entrada.nombre ?? '').trim();
+    if (nombreLimpio.length < 2) {
+      throw new ApiError(400, 'VALIDACION', 'El nombre completo debe tener al menos 2 caracteres.', {
+        campos: { nombre: 'Ingresa tu nombre completo.' },
+      });
+    }
+    const actualizado: EstadoAuthMock = {
+      ...auth,
+      nombre: nombreLimpio,
+    };
+    guardarAuthMock(actualizado);
+    const yo: Yo = {
+      sub: actualizado.sub,
+      nombre: actualizado.nombre,
+      correo: actualizado.correo,
+      fotoUrl: actualizado.fotoUrl,
+      rol: actualizado.rol,
+      estado: actualizado.estado,
+    };
+    return yo as T;
+  }
+
+  // 5c. Auth: DELETE /api/auth/yo
+  if (pathname === '/api/auth/yo' && method === 'DELETE') {
+    const sesionVacia: EstadoAuthMock = {
+      ...AUTH_POR_DEFECTO,
+      autenticado: false,
+      estado: 'PENDIENTE',
+    };
+    guardarAuthMock(sesionVacia);
+    return undefined as T;
+  }
+
   // Verificar sesión aprobada para el resto de endpoints
   if (!auth.autenticado) {
     throw new ApiError(401, 'NO_AUTENTICADO', 'Tu sesión expiró. Vuelve a iniciar sesión.');

@@ -5,7 +5,7 @@ import { DisenoAutenticado } from './componentes/DisenoAutenticado';
 import { PaginaIngresar } from './paginas/PaginaIngresar';
 import { PaginaEstadoAcceso } from './paginas/PaginaEstadoAcceso';
 import { PaginaCalendario } from './paginas/PaginaCalendario';
-import { PaginaHistorial } from './paginas/PaginaHistorial';
+import { PaginaConfiguracionPerfil } from './paginas/PaginaConfiguracionPerfil';
 import { PaginaNuevaReservacion } from './paginas/PaginaNuevaReservacion';
 
 const queryClientPorDefecto = new QueryClient({
@@ -26,8 +26,8 @@ export function RutasAplicacion() {
       <Route element={<DisenoAutenticado />}>
         <Route path="/" element={<Navigate to="/calendario" replace />} />
         <Route path="/calendario" element={<PaginaCalendario />} />
-        <Route path="/historial" element={<PaginaHistorial />} />
         <Route path="/reservaciones/nueva" element={<PaginaNuevaReservacion />} />
+        <Route path="/configuracion-perfil" element={<PaginaConfiguracionPerfil />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/calendario" replace />} />

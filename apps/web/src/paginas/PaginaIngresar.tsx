@@ -1,12 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ShieldCheck, Terminal } from 'lucide-react';
-import { loginDev } from '../api/consultas';
-import { mensajeDeError, usarMocks } from '../api/cliente';
-import type { EstadoAcceso, Rol } from '../api/tipos';
+import { AlertCircle, ShieldCheck } from 'lucide-react';
+import { usarMocks } from '../api/cliente';
 import { activarSesionGoogleMock } from '../mocks/servidorMock';
-import logoUlatino from '../assets/logo-ulatino.svg';
+import logoUlatino from '../assets/logo.png';
 
 function IconoGoogle() {
   return (
@@ -44,16 +41,6 @@ export function PaginaIngresar() {
         ? 'No fue posible iniciar sesión con Google. Intenta de nuevo.'
         : null;
 
-  // Estado del panel de desarrollo (solo en import.meta.env.DEV)
-  const [devAbierto, setDevAbierto] = useState(false);
-  const [devSub, setDevSub] = useState('google-oauth2|109823471928374');
-  const [devNombre, setDevNombre] = useState('Mtra. Ana Sofía López Hernández');
-  const [devCorreo, setDevCorreo] = useState('ana.lopez@ulatino.edu.mx');
-  const [devEstado, setDevEstado] = useState<EstadoAcceso>('APROBADA');
-  const [devRol, setDevRol] = useState<Rol>('ADMIN_ESPACIOS');
-  const [devCargando, setDevCargando] = useState(false);
-  const [devError, setDevError] = useState<string | null>(null);
-
   const manejarContinuarConGoogle = () => {
     if (usarMocks()) {
       const estado = activarSesionGoogleMock();
@@ -62,31 +49,6 @@ export function PaginaIngresar() {
       return;
     }
     window.location.href = '/api/auth/google/iniciar';
-  };
-
-  const manejarEnvioDev = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setDevCargando(true);
-    setDevError(null);
-    try {
-      await loginDev({
-        sub: devSub.trim(),
-        nombre: devNombre.trim(),
-        correo: devCorreo.trim(),
-        estado: devEstado,
-        rol: devRol,
-      });
-      queryClient.clear();
-      if (devEstado === 'APROBADA') {
-        navigate('/calendario');
-      } else {
-        navigate('/acceso/estado');
-      }
-    } catch (err) {
-      setDevError(mensajeDeError(err));
-    } finally {
-      setDevCargando(false);
-    }
   };
 
   return (
@@ -98,13 +60,11 @@ export function PaginaIngresar() {
 
           <div className="p-7 sm:p-8 text-center space-y-6">
             <div className="flex flex-col items-center">
-              <div className="rounded-2xl bg-navy p-3 shadow-md ring-4 ring-amber/20 mb-4">
-                <img
-                  src={logoUlatino}
-                  alt="Escudo Universidad Latino"
-                  className="h-14 w-14"
-                />
-              </div>
+              <img
+                src={logoUlatino}
+                alt="Universidad Latino"
+                className="w-36 h-auto mb-4 drop-shadow-sm"
+              />
               <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-3 py-0.5 text-xs font-semibold text-amber-700 mb-2">
                 Universidad Latino
               </span>
@@ -143,119 +103,6 @@ export function PaginaIngresar() {
             </div>
           </div>
         </div>
-
-        {/* Panel discreto de acceso de desarrollo (solo en DEV) */}
-        {import.meta.env.DEV && (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 p-4 text-xs shadow-sm">
-            <button
-              type="button"
-              onClick={() => setDevAbierto((v) => !v)}
-              className="flex w-full items-center justify-between font-semibold text-texto-suave hover:text-navy"
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <Terminal className="h-3.5 w-3.5 text-amber-600" />
-                Acceso de desarrollo
-              </span>
-              <span>{devAbierto ? 'Ocultar ▲' : 'Configurar ▼'}</span>
-            </button>
-
-            {devAbierto && (
-              <form onSubmit={manejarEnvioDev} className="mt-3 space-y-2.5 border-t border-slate-200 pt-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label htmlFor="dev-sub" className="block text-[11px] font-medium text-texto-suave mb-0.5">
-                      Google Sub
-                    </label>
-                    <input
-                      id="dev-sub"
-                      type="text"
-                      value={devSub}
-                      onChange={(e) => setDevSub(e.target.value)}
-                      className="input-base py-1.5 text-xs"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="dev-nombre" className="block text-[11px] font-medium text-texto-suave mb-0.5">
-                      Nombre
-                    </label>
-                    <input
-                      id="dev-nombre"
-                      type="text"
-                      value={devNombre}
-                      onChange={(e) => setDevNombre(e.target.value)}
-                      className="input-base py-1.5 text-xs"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="dev-correo" className="block text-[11px] font-medium text-texto-suave mb-0.5">
-                    Correo electrónico
-                  </label>
-                  <input
-                    id="dev-correo"
-                    type="email"
-                    value={devCorreo}
-                    onChange={(e) => setDevCorreo(e.target.value)}
-                    className="input-base py-1.5 text-xs"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label htmlFor="dev-estado" className="block text-[11px] font-medium text-texto-suave mb-0.5">
-                      Estado de cuenta
-                    </label>
-                    <select
-                      id="dev-estado"
-                      value={devEstado}
-                      onChange={(e) => setDevEstado(e.target.value as EstadoAcceso)}
-                      className="input-base py-1.5 text-xs"
-                    >
-                      <option value="APROBADA">APROBADA</option>
-                      <option value="PENDIENTE">PENDIENTE</option>
-                      <option value="RECHAZADA">RECHAZADA</option>
-                      <option value="REVOCADA">REVOCADA</option>
-                      <option value="EXPIRADA">EXPIRADA</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="dev-rol" className="block text-[11px] font-medium text-texto-suave mb-0.5">
-                      Rol asignado
-                    </label>
-                    <select
-                      id="dev-rol"
-                      value={devRol}
-                      onChange={(e) => setDevRol(e.target.value as Rol)}
-                      className="input-base py-1.5 text-xs"
-                    >
-                      <option value="ADMIN_ESPACIOS">ADMIN_ESPACIOS</option>
-                      <option value="DOCENTE">DOCENTE</option>
-                      <option value="PERSONAL">PERSONAL</option>
-                    </select>
-                  </div>
-                </div>
-
-                {devError && (
-                  <p role="alert" className="text-rose-600 font-medium">
-                    {devError}
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={devCargando}
-                  className="btn-navy w-full py-1.5 text-xs"
-                >
-                  {devCargando ? 'Iniciando sesión dev...' : 'Simular acceso (POST /api/auth/dev)'}
-                </button>
-              </form>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

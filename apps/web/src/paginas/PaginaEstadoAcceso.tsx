@@ -14,7 +14,7 @@ import { esApiError, usarMocks } from '../api/cliente';
 import { formatearFechaHora } from '../utilidades/fechas';
 import { obtenerEtiquetaRol } from '../utilidades/catalogos';
 import { activarSesionGoogleMock } from '../mocks/servidorMock';
-import logoUlatino from '../assets/logo-ulatino.svg';
+import logoUlatino from '../assets/logo.png';
 
 export function PaginaEstadoAcceso() {
   const { data, isLoading, isFetching, error, refetch } = useEstadoSolicitud();
@@ -79,7 +79,7 @@ export function PaginaEstadoAcceso() {
     <div className="min-h-screen bg-fondo flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-lg tarjeta overflow-hidden">
         <div className="bg-navy px-6 py-5 text-white flex items-center gap-3">
-          <img src={logoUlatino} alt="Universidad Latino" className="h-10 w-10 shrink-0" />
+          <img src={logoUlatino} alt="Universidad Latino" className="h-10 w-auto shrink-0 drop-shadow-sm" />
           <div>
             <h1 className="text-base font-bold">SIPREF Reservas · Control de Acceso</h1>
             <p className="text-xs text-navy-200">Universidad Latino</p>

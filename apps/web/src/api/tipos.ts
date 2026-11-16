@@ -45,6 +45,10 @@ export interface Yo {
   estado: EstadoAcceso;
 }
 
+export interface ActualizarPerfilEntrada {
+  nombre: string;
+}
+
 export interface DevLoginEntrada {
   sub: string;
   nombre: string;

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, construirQuery } from './cliente';
 import type {
+  ActualizarPerfilEntrada,
   ConfiguracionPublica,
   DevLoginEntrada,
   DisponibilidadEntrada,
@@ -45,6 +46,27 @@ export const useEstadoSolicitud = () =>
 
 export const salir = () => api<void>('/api/auth/salir', { method: 'POST' });
 export const loginDev = (d: DevLoginEntrada) => api<unknown>('/api/auth/dev', { method: 'POST', body: d });
+
+export function useActualizarPerfil() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (d: ActualizarPerfilEntrada) =>
+      api<Yo>('/api/auth/yo', { method: 'PATCH', body: d }),
+    onSuccess: (yoActualizado) => {
+      qc.setQueryData<Yo>(claves.yo, yoActualizado);
+    },
+  });
+}
+
+export function useEliminarCuenta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<void>('/api/auth/yo', { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.clear();
+    },
+  });
+}
 
 // ─── Catálogos ──────────────────────────────────────────────────
 export const useConfiguracion = () =>
