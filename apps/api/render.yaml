@@ -1,0 +1,75 @@
+# =============================================================================
+# Render Blueprint · SIPREF Reservas (Backend API + Cron Job)
+# =============================================================================
+services:
+  - type: web
+    name: sipref-reservas-api
+    runtime: node
+    rootDir: apps/api
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/salud
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: AUTH_DEV_BYPASS
+        value: "false"
+      - key: DATABASE_SSL
+        value: "true"
+      - key: SOLICITUD_EXPIRACION_DIAS
+        value: "30"
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: INTEGRACION_KEY_ID
+        sync: false
+      - key: INTEGRACION_SECRET
+        sync: false
+      - key: INTEGRACION_IPS_PERMITIDAS
+        sync: false
+      - key: PRINCIPAL_WEBHOOK_URL
+        sync: false
+      - key: PRINCIPAL_WEBHOOK_SECRET
+        sync: false
+      - key: PRINCIPAL_BITACORA_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: DOMINIOS_PERMITIDOS
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: sipref-reservas-tareas
+    runtime: node
+    rootDir: apps/api
+    schedule: "*/5 * * * *"
+    buildCommand: "true"
+    startCommand: >-
+      node -e "fetch(process.env.API_INTERNAL_URL + '/api/tareas/ejecutar', { method: 'POST', headers: { 'X-Cron-Secret': process.env.CRON_SECRET } }).then(async r => { if (!r.ok) { console.error(await r.text()); process.exit(1); } console.log(await r.text()); })"
+    envVars:
+      - key: API_INTERNAL_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false

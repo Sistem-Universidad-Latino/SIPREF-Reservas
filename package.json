@@ -1,0 +1,26 @@
+{
+  "name": "sipref-reservas",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Sistema secundario de reservación de espacios de la Universidad Latino (integrado con SIPREF).",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"api,web\" -c \"blue,green\" \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:mocks": "npm run dev:mocks -w apps/web",
+    "build": "npm run build -w apps/api && npm run build -w apps/web",
+    "test": "npm test -w apps/api && npm test -w apps/web",
+    "db:local:up": "docker compose -f db/local/docker-compose.yml up -d",
+    "db:local:down": "docker compose -f db/local/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "concurrently": "9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

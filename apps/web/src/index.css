@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #F6F8FB;
+    color: #1E293B;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: #F6F8FB;
+  }
+
+  *:focus-visible {
+    outline: 2px solid #F5B73B;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .tarjeta {
+    @apply bg-white rounded-card border border-borde shadow-card;
+  }
+
+  .input-base {
+    @apply w-full rounded-lg border border-borde bg-white px-3.5 py-2 text-sm text-texto placeholder:text-texto-suave/70 transition-colors focus:border-navy focus:outline-none focus:ring-2 focus:ring-amber/40 disabled:bg-slate-100 disabled:text-texto-suave;
+  }
+
+  .label-base {
+    @apply block text-xs font-semibold uppercase tracking-wide text-texto-suave mb-1.5;
+  }
+
+  .btn-primario {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-amber px-4 py-2.5 text-sm font-semibold text-navy-900 shadow-sm transition hover:bg-amber-500 active:bg-amber-600 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-navy {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-navy-600 active:bg-navy-800 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secundario {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-borde bg-white px-4 py-2 text-sm font-medium text-texto transition hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50 disabled:pointer-events-none;
+  }
+}

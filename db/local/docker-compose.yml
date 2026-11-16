@@ -1,0 +1,33 @@
+# SOLO LOCAL – PostgreSQL de desarrollo para SIPREF Reservas.
+# Uso (desde la raíz del repo):  docker compose -f db/local/docker-compose.yml up -d
+# Superusuario local: postgres / postgres_local_dev  (solo para inspección)
+# Rol de la app:      sipref_reservas_app / app_local_dev  (privilegio mínimo)
+# Para reinicializar: docker compose -f db/local/docker-compose.yml down -v
+name: sipref-reservas-local
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: sipref-reservas-db
+    environment:
+      POSTGRES_DB: sipref
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_local_dev
+      TZ: America/Mexico_City
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./stub_sipref_principal.sql:/docker-entrypoint-initdb.d/00_stub_sipref_principal.sql:ro
+      - ../migrations/V001__reservas_esquema_inicial.sql:/docker-entrypoint-initdb.d/01_V001.sql:ro
+      - ../migrations/V002__reservas_restriccion_exclusion_OPCIONAL.sql:/docker-entrypoint-initdb.d/02_V002.sql:ro
+      - ./roles_local.sql:/docker-entrypoint-initdb.d/03_roles_local.sql:ro
+      - ./seed_local.sql:/docker-entrypoint-initdb.d/04_seed_local.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sipref"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
