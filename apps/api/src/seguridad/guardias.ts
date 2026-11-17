@@ -90,7 +90,12 @@ export async function requerirSesionAprobada(
     );
   }
 
-  if (fila.estado !== 'APROBADA' || !fila.rol) {
+  const estadoNormalizado =
+    String(fila.estado).toUpperCase() === 'ACTIVO'
+      ? 'APROBADA'
+      : String(fila.estado);
+
+  if (estadoNormalizado !== 'APROBADA' || !fila.rol) {
     await pool.query(
       `UPDATE reservas_sesiones SET revocada_en = now() WHERE token_hash = $1 AND revocada_en IS NULL`,
       [tokenHash],
@@ -110,7 +115,7 @@ export async function requerirSesionAprobada(
     correo: String(fila.correo),
     fotoUrl: fila.foto_url ? String(fila.foto_url) : null,
     rol: fila.rol as RolUsuario,
-    estado: fila.estado as EstadoAcceso,
+    estado: estadoNormalizado as EstadoAcceso,
     tokenHash,
   };
 }

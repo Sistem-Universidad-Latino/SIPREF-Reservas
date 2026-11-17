@@ -105,7 +105,11 @@ async function procesarIngresoIdentidad(
       );
     } else {
       const previo = existentes[0];
-      estadoActual = (entrada.forzarEstado ?? previo.estado) as EstadoAcceso;
+      const estadoNormalizado =
+        String(previo.estado).toUpperCase() === 'ACTIVO'
+          ? 'APROBADA'
+          : String(previo.estado);
+      estadoActual = (entrada.forzarEstado ?? estadoNormalizado) as EstadoAcceso;
       rolActual = (entrada.forzarRol ?? previo.rol ?? null) as RolUsuario | null;
       if (estadoActual === 'APROBADA' && !rolActual) {
         rolActual = 'DOCENTE';
@@ -549,7 +553,11 @@ export async function rutasAuth(app: FastifyInstance): Promise<void> {
     }
 
     const usuario = usuRows[0];
-    const estadoCuenta = String(usuario.estado) as EstadoAcceso;
+    const estadoCuenta = (
+      String(usuario.estado).toUpperCase() === 'ACTIVO'
+        ? 'APROBADA'
+        : String(usuario.estado)
+    ) as EstadoAcceso;
 
     const { rows: solRows } = await pool.query(
       solicitudIdPreferida
