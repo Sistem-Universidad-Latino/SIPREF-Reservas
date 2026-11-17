@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -16,6 +16,7 @@ import {
   Package,
   Pencil,
   Plus,
+  RotateCcw,
   Sparkles,
   Trash2,
   User,
@@ -98,13 +99,16 @@ export function PaginaNuevaReservacion() {
   const [correoResponsable, setCorreoResponsable] = useState<string>('');
   const [descripcion, setDescripcion] = useState<string>('');
 
-  // Prellenar responsable y correo con el usuario autenticado y el primer espacio
+  const prefillInicialRef = useRef(false);
+
+  // Prellenar responsable y correo con el usuario autenticado una sola vez al cargar
   useEffect(() => {
-    if (yo && !responsable && !correoResponsable) {
-      setResponsable(yo.nombre);
-      setCorreoResponsable(yo.correo);
+    if (yo && !prefillInicialRef.current) {
+      prefillInicialRef.current = true;
+      setResponsable((prev) => prev || yo.nombre);
+      setCorreoResponsable((prev) => prev || yo.correo);
     }
-  }, [yo, responsable, correoResponsable]);
+  }, [yo]);
 
   useEffect(() => {
     if (!espacioId && espacios.length > 0) {
@@ -313,6 +317,29 @@ export function PaginaNuevaReservacion() {
     () => convertirFilasRecordatorios(filasRecordatorios),
     [filasRecordatorios],
   );
+
+  const manejarLimpiarTodo = () => {
+    setPlantillaSeleccionadaId('');
+    setTipoEvento('');
+    setNombreEvento('');
+    setEspacioId(espacios[0]?.id ?? '');
+    setFecha(fechaPorDefecto);
+    setHoraInicio('10:00');
+    setHoraFin('12:30');
+    setResponsable('');
+    setCorreoResponsable('');
+    setDescripcion('');
+    setRecursosSeleccionados({});
+    setMostrarAgregarMaterial(false);
+    setNuevoMaterialNombre('');
+    setNuevoMaterialRequiereCantidad(true);
+    setErrorNuevoMaterial(null);
+    setFilasRecordatorios([crearFilaRecordatorioPorDefecto('fila-inicial')]);
+    setErroresCampo({});
+    setErrorGeneral(null);
+    setConflictosEnvio([]);
+    toast.exito('Formulario limpiado');
+  };
 
   const manejarSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1100,7 +1127,7 @@ export function PaginaNuevaReservacion() {
           </div>
 
           {/* Botones de acción */}
-          <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row lg:flex-col gap-2.5">
+          <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80 space-y-2.5">
             <button
               type="submit"
               disabled={crearReservacionMut.isPending}
@@ -1119,12 +1146,24 @@ export function PaginaNuevaReservacion() {
               )}
             </button>
 
-            <Link
-              to="/calendario"
-              className="w-full text-center border border-slate-200 rounded-xl px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              Cancelar
-            </Link>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={manejarLimpiarTodo}
+                disabled={crearReservacionMut.isPending}
+                className="w-full inline-flex items-center justify-center gap-1.5 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                <span>Limpiar todo</span>
+              </button>
+
+              <Link
+                to="/calendario"
+                className="w-full flex items-center justify-center border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </Link>
+            </div>
           </div>
         </div>
       </form>
