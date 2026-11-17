@@ -172,8 +172,8 @@ export function PaginaCalendario() {
           </div>
         </div>
 
-        {/* Controles de periodo y selector de vista */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+        {/* Controles de periodo y resumen */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50/70 p-1">
               <button
@@ -233,6 +233,13 @@ export function PaginaCalendario() {
               ))}
             </div>
           </div>
+
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+              <span className="h-2 w-2 rounded-full bg-[#1c355e]" />
+              {eventos.length} evento{eventos.length === 1 ? '' : 's'} en vista
+            </span>
+          </div>
         </div>
       </div>
 
@@ -250,7 +257,7 @@ export function PaginaCalendario() {
           {!isLoading && vista === 'mes' && (
             <div>
               {/* Cabecera Lun - Dom */}
-              <div className="grid grid-cols-7 border-b border-slate-200/80 bg-slate-50/90 text-center text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
+              <div className="grid grid-cols-7 border-b border-slate-200/80 bg-[#1c355e]/[0.03] text-center text-[11px] font-extrabold uppercase tracking-widest text-[#1c355e]/70">
                 {DIAS_SEMANA_CORTOS.map((d) => (
                   <div key={d} className="py-3">
                     {d}
@@ -260,10 +267,11 @@ export function PaginaCalendario() {
 
               {/* 42 celdas del mes */}
               <div className="grid grid-cols-7 divide-x divide-y divide-slate-200/70">
-                {cuadriculaMes.celdas.map((celda) => {
+                {cuadriculaMes.celdas.map((celda, idx) => {
                   const evs = eventosPorDia.get(celda.fechaYmd) ?? [];
                   const esSeleccionado = celda.fechaYmd === fechaSeleccionada;
                   const esHoy = celda.fechaYmd === hoyYmd;
+                  const esFinDeSemana = idx % 7 >= 5;
 
                   return (
                     <div
@@ -278,8 +286,12 @@ export function PaginaCalendario() {
                         }
                       }}
                       aria-label={`${formatearFechaCompleta(celda.fechaYmd)}, ${evs.length} eventos`}
-                      className={`min-h-[112px] p-2 text-left transition-colors cursor-pointer select-none ${
-                        !celda.esMesActual ? 'bg-slate-50/60 text-slate-400' : 'bg-white'
+                      className={`group min-h-[118px] p-2 text-left transition-colors cursor-pointer select-none ${
+                        !celda.esMesActual
+                          ? 'bg-slate-50/70 text-slate-400'
+                          : esFinDeSemana
+                            ? 'bg-slate-50/35'
+                            : 'bg-white'
                       } ${
                         esSeleccionado
                           ? 'ring-2 ring-inset ring-[#1c355e] bg-[#1c355e]/[0.03]'
@@ -300,11 +312,21 @@ export function PaginaCalendario() {
                         >
                           {celda.diaMes}
                         </span>
-                        {evs.length > 0 && (
-                          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
-                            {evs.length}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {evs.length > 0 && (
+                            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#1c355e]/10 text-[10px] font-bold text-[#1c355e]">
+                              {evs.length}
+                            </span>
+                          )}
+                          <Link
+                            to={`/reservaciones/nueva?fecha=${celda.fechaYmd}`}
+                            onClick={(e) => e.stopPropagation()}
+                            title={`Agendar el ${formatearFechaCompleta(celda.fechaYmd)}`}
+                            className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-5 h-5 rounded-md bg-slate-100 hover:bg-[#fdbb11] text-slate-500 hover:text-[#0e2045] transition-all"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Link>
+                        </div>
                       </div>
 
                       <div className="space-y-1">

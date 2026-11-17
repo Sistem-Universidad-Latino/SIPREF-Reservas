@@ -50,11 +50,11 @@ export const CATALOGO_TIPOS_EVENTO: Record<TipoEvento, InfoTipoEvento> = {
   OTRO: {
     tipo: 'OTRO',
     etiqueta: 'Otro',
-    colorHex: '#64748B',
-    clasesBadge: 'bg-slate-100 text-slate-700 border-slate-200',
-    clasesChip: 'bg-slate-600 text-white hover:bg-slate-700',
-    clasesPunto: 'bg-slate-500',
-    clasesBordeIzq: 'border-l-slate-500',
+    colorHex: '#1c355e',
+    clasesBadge: 'bg-[#1c355e]/5 text-[#1c355e] border-[#1c355e]/20',
+    clasesChip: 'bg-[#1c355e] text-white hover:bg-[#152847]',
+    clasesPunto: 'bg-[#fdbb11]',
+    clasesBordeIzq: 'border-l-[#1c355e]',
   },
 };
 
