@@ -43,6 +43,14 @@ interface Opciones {
   signal?: AbortSignal;
 }
 
+function notificarEstadoConexion(conectada: boolean): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('sipref:conexion', { detail: { conectada } }),
+    );
+  }
+}
+
 /** Cliente HTTP. Siempre usa rutas relativas /api/... (mismo origen, cookies httpOnly). */
 export async function api<T>(ruta: string, { method = 'GET', body, signal }: Opciones = {}): Promise<T> {
   if (usarMocks()) {
@@ -66,7 +74,14 @@ export async function api<T>(ruta: string, { method = 'GET', body, signal }: Opc
     });
   } catch (e) {
     if ((e as Error)?.name === 'AbortError') throw e;
+    notificarEstadoConexion(false);
     throw new ApiError(0, 'RED', 'No hay conexión con el servidor. Revisa tu red e intenta de nuevo.');
+  }
+
+  if (resp.status >= 502 && resp.status <= 504) {
+    notificarEstadoConexion(false);
+  } else {
+    notificarEstadoConexion(true);
   }
 
   if (resp.status === 204) return undefined as T;

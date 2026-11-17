@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -6,6 +6,8 @@ import {
   LogOut,
   Menu,
   PlusCircle,
+  Radio,
+  WifiOff,
   X,
 } from 'lucide-react';
 import { salir, useYo } from '../api/consultas';
@@ -13,12 +15,54 @@ import { esApiError } from '../api/cliente';
 import { obtenerEtiquetaRol } from '../utilidades/catalogos';
 import logoUlatino from '../assets/logo.png';
 
+function formatearFechaInstitucional(fecha: Date): string {
+  return fecha.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'America/Merida',
+  });
+}
+
 export function DisenoAutenticado() {
   const { data: yo, isLoading, error } = useYo();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
+  const [fechaActual, setFechaActual] = useState<Date>(() => new Date());
+  const [errorConexion, setErrorConexion] = useState<boolean>(
+    () => typeof navigator !== 'undefined' && navigator.onLine === false,
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const intervalo = window.setInterval(() => {
+      setFechaActual(new Date());
+    }, 60_000);
+
+    const manejarOnline = () => setErrorConexion(false);
+    const manejarOffline = () => setErrorConexion(true);
+    const manejarEventoConexion = (ev: Event) => {
+      const detalle = (ev as CustomEvent<{ conectada?: boolean }>).detail;
+      if (typeof detalle?.conectada === 'boolean') {
+        setErrorConexion(!detalle.conectada || navigator.onLine === false);
+      }
+    };
+
+    window.addEventListener('online', manejarOnline);
+    window.addEventListener('offline', manejarOffline);
+    window.addEventListener('sipref:conexion', manejarEventoConexion);
+
+    return () => {
+      window.clearInterval(intervalo);
+      window.removeEventListener('online', manejarOnline);
+      window.removeEventListener('offline', manejarOffline);
+      window.removeEventListener('sipref:conexion', manejarEventoConexion);
+    };
+  }, []);
+
+  const fechaFormateada = formatearFechaInstitucional(fechaActual);
 
   if (isLoading) {
     return (
@@ -185,33 +229,64 @@ export function DisenoAutenticado() {
           </div>
         </div>
 
-        {/* Perfil del Usuario arriba a la derecha (siempre visible y configurable como SIPREF) */}
-        <Link
-          to="/configuracion-perfil"
-          title="Configuración de Perfil"
-          className="flex items-center gap-3 ml-auto pl-3 lg:border-l lg:border-[#c5c6cf]/30 shrink-0 group cursor-pointer rounded-lg py-1 pr-1 transition hover:bg-slate-50"
-        >
-          <div className="flex flex-col items-end justify-center min-w-0 hidden sm:flex">
-            <p className="text-xs sm:text-sm font-bold text-[#1b1c1e] leading-tight truncate max-w-[160px] lg:max-w-[220px] group-hover:text-[#244275] transition-colors">
-              {yo.nombre}
-            </p>
-            <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-wider">
-              {obtenerEtiquetaRol(yo.rol)}
-            </p>
+        {/* Indicador en vivo de fecha/conexión y Perfil del Usuario arriba a la derecha */}
+        <div className="flex items-center gap-3 sm:gap-4 ml-auto shrink-0">
+          <div
+            className={`hidden sm:flex items-center gap-2.5 bg-white/80 backdrop-blur-sm rounded-full px-4 py-2 border shadow-sm transition-all ${
+              errorConexion
+                ? 'border-orange-300 shadow-orange-100'
+                : 'border-slate-200/80'
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            {errorConexion ? (
+              <>
+                <WifiOff className="h-[18px] w-[18px] text-orange-500 shrink-0" />
+                <span className="text-xs font-extrabold text-orange-600">
+                  Sin conexión
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="relative flex items-center justify-center shrink-0">
+                  <Radio className="h-[18px] w-[18px] text-emerald-500" />
+                  <span className="absolute w-2 h-2 rounded-full bg-emerald-400 animate-ping opacity-75" />
+                </span>
+                <span className="text-xs font-bold text-[#1b1c1e] capitalize">
+                  {fechaFormateada}
+                </span>
+              </>
+            )}
           </div>
-          {yo.fotoUrl ? (
-            <img
-              src={yo.fotoUrl}
-              alt={yo.nombre}
-              referrerPolicy="no-referrer"
-              className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full object-cover border border-[#c5c6cf]/40 shadow-sm group-hover:scale-105 transition-transform"
-            />
-          ) : (
-            <div className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 rounded-full bg-[#0e2045] text-white flex items-center justify-center border border-[#c5c6cf]/30 font-bold text-xs sm:text-sm uppercase shadow-sm group-hover:scale-105 group-hover:bg-[#1c355e] transition-all">
-              {iniciales || 'UL'}
+
+          <Link
+            to="/configuracion-perfil"
+            title="Configuración de Perfil"
+            className="flex items-center gap-3 pl-3 lg:border-l lg:border-[#c5c6cf]/30 shrink-0 group cursor-pointer rounded-lg py-1 pr-1 transition hover:bg-slate-50"
+          >
+            <div className="flex flex-col items-end justify-center min-w-0 hidden sm:flex">
+              <p className="text-xs sm:text-sm font-bold text-[#1b1c1e] leading-tight truncate max-w-[160px] lg:max-w-[220px] group-hover:text-[#244275] transition-colors">
+                {yo.nombre}
+              </p>
+              <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                {obtenerEtiquetaRol(yo.rol)}
+              </p>
             </div>
-          )}
-        </Link>
+            {yo.fotoUrl ? (
+              <img
+                src={yo.fotoUrl}
+                alt={yo.nombre}
+                referrerPolicy="no-referrer"
+                className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full object-cover border border-[#c5c6cf]/40 shadow-sm group-hover:scale-105 transition-transform"
+              />
+            ) : (
+              <div className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 rounded-full bg-[#0e2045] text-white flex items-center justify-center border border-[#c5c6cf]/30 font-bold text-xs sm:text-sm uppercase shadow-sm group-hover:scale-105 group-hover:bg-[#1c355e] transition-all">
+                {iniciales || 'UL'}
+              </div>
+            )}
+          </Link>
+        </div>
       </header>
 
       {/* Sidebar fijo en escritorio */}
