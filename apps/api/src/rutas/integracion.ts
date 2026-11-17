@@ -120,7 +120,7 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
         condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
 
       const { rows: countRows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM reservas_solicitudes_acceso ${whereSql}`,
+        `SELECT COUNT(*) AS total FROM reservas_solicitudes_acceso ${whereSql}`,
         params,
       );
       const total = Number(countRows[0]?.total ?? 0);
@@ -154,7 +154,7 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
       const pool = obtenerPool();
       const { rows } = await pool.query(
         `
-        SELECT estado, COUNT(*)::int AS cantidad
+        SELECT estado, COUNT(*) AS cantidad
         FROM reservas_solicitudes_acceso
         GROUP BY estado
         `,
@@ -191,7 +191,7 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
 
       const pool = obtenerPool();
       const { rows } = await pool.query(
-        `SELECT * FROM reservas_solicitudes_acceso WHERE id = $1::uuid LIMIT 1`,
+        `SELECT * FROM reservas_solicitudes_acceso WHERE id = $1 LIMIT 1`,
         [id],
       );
 
@@ -217,7 +217,7 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
 
       const { solicitud, recienAprobada } = await enTransaccion(async (tx) => {
         const { rows } = await tx.query(
-          `SELECT * FROM reservas_solicitudes_acceso WHERE id = $1::uuid FOR UPDATE`,
+          `SELECT * FROM reservas_solicitudes_acceso WHERE id = $1 FOR UPDATE`,
           [id],
         );
 
@@ -248,17 +248,16 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
           );
         }
 
-        const { rows: actualizadas } = await tx.query(
+        await tx.query(
           `
           UPDATE reservas_solicitudes_acceso
           SET estado = 'APROBADA',
               rol_asignado = $2,
               resuelto_por_id = $3,
               resuelto_por_nombre = $4,
-              resuelto_en = now(),
+              resuelto_en = NOW(),
               motivo = COALESCE($5, motivo)
-          WHERE id = $1::uuid
-          RETURNING *
+          WHERE id = $1
           `,
           [
             id,
@@ -267,6 +266,10 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
             body.admin.nombre,
             body.motivo ?? null,
           ],
+        );
+        const { rows: actualizadas } = await tx.query(
+          `SELECT * FROM reservas_solicitudes_acceso WHERE id = $1 LIMIT 1`,
+          [id],
         );
 
         await tx.query(
@@ -336,7 +339,7 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
 
       return enTransaccion(async (tx) => {
         const { rows } = await tx.query(
-          `SELECT * FROM reservas_solicitudes_acceso WHERE id = $1::uuid FOR UPDATE`,
+          `SELECT * FROM reservas_solicitudes_acceso WHERE id = $1 FOR UPDATE`,
           [id],
         );
 
@@ -361,18 +364,21 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
           );
         }
 
-        const { rows: actualizadas } = await tx.query(
+        await tx.query(
           `
           UPDATE reservas_solicitudes_acceso
           SET estado = 'RECHAZADA',
               resuelto_por_id = $2,
               resuelto_por_nombre = $3,
-              resuelto_en = now(),
+              resuelto_en = NOW(),
               motivo = $4
-          WHERE id = $1::uuid
-          RETURNING *
+          WHERE id = $1
           `,
           [id, body.admin.id, body.admin.nombre, body.motivo ?? null],
+        );
+        const { rows: actualizadas } = await tx.query(
+          `SELECT * FROM reservas_solicitudes_acceso WHERE id = $1 LIMIT 1`,
+          [id],
         );
 
         await tx.query(
@@ -437,15 +443,18 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
 
         const usuarioActual = usuRows[0];
 
-        const { rows: usuActualizados } = await tx.query(
+        await tx.query(
           `
           UPDATE reservas_usuarios
           SET estado = 'REVOCADA',
               rol = NULL,
-              actualizado_en = now()
+              actualizado_en = NOW()
           WHERE google_sub = $1
-          RETURNING google_sub, nombre, correo, foto_url, rol, estado, actualizado_en
           `,
+          [sub],
+        );
+        const { rows: usuActualizados } = await tx.query(
+          `SELECT google_sub, nombre, correo, foto_url, rol, estado, actualizado_en FROM reservas_usuarios WHERE google_sub = $1 LIMIT 1`,
           [sub],
         );
 
@@ -553,16 +562,19 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
           );
         }
 
-        const { rows: usuActualizados } = await tx.query(
+        await tx.query(
           `
           UPDATE reservas_usuarios
           SET estado = 'APROBADA',
               rol = $2,
-              actualizado_en = now()
+              actualizado_en = NOW()
           WHERE google_sub = $1
-          RETURNING google_sub, nombre, correo, foto_url, rol, estado, actualizado_en
           `,
           [sub, body.rol],
+        );
+        const { rows: usuActualizados } = await tx.query(
+          `SELECT google_sub, nombre, correo, foto_url, rol, estado, actualizado_en FROM reservas_usuarios WHERE google_sub = $1 LIMIT 1`,
+          [sub],
         );
 
         await tx.query(
@@ -647,7 +659,7 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
         condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
 
       const { rows: countRows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM reservas_usuarios ${whereSql}`,
+        `SELECT COUNT(*) AS total FROM reservas_usuarios ${whereSql}`,
         params,
       );
       const total = Number(countRows[0]?.total ?? 0);
@@ -703,13 +715,13 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
       const params: unknown[] = [];
 
       if (query.desde) {
-        params.push(new Date(query.desde).toISOString());
-        condiciones.push(`ocurrido_en >= $${params.length}::timestamptz`);
+        params.push(new Date(query.desde));
+        condiciones.push(`ocurrido_en >= $${params.length}`);
       }
 
       if (query.hasta) {
-        params.push(new Date(query.hasta).toISOString());
-        condiciones.push(`ocurrido_en <= $${params.length}::timestamptz`);
+        params.push(new Date(query.hasta));
+        condiciones.push(`ocurrido_en <= $${params.length}`);
       }
 
       if (query.accion && query.accion.trim() !== '') {
@@ -721,7 +733,7 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
         condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
 
       const { rows: countRows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM reservas_auditoria ${whereSql}`,
+        `SELECT COUNT(*) AS total FROM reservas_auditoria ${whereSql}`,
         params,
       );
       const total = Number(countRows[0]?.total ?? 0);
@@ -783,7 +795,7 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
       }
 
       const pool = obtenerPool();
-      const params: unknown[] = [desde.toISOString(), hasta.toISOString()];
+      const params: unknown[] = [desde, hasta];
       let filtroEspacio = '';
       if (query.espacioId && query.espacioId.trim() !== '') {
         params.push(query.espacioId.trim());
@@ -795,8 +807,8 @@ export async function rutasIntegracion(app: FastifyInstance): Promise<void> {
         SELECT id, codigo, tipo_evento, espacio_id, espacio_nombre, nombre_evento, responsable, inicio, fin
         FROM reservas_reservaciones
         WHERE estado = 'PROGRAMADA'
-          AND inicio < $2::timestamptz
-          AND fin > $1::timestamptz
+          AND inicio < $2
+          AND fin > $1
           ${filtroEspacio}
         ORDER BY inicio ASC
         `,

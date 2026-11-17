@@ -1,45 +1,111 @@
-import pg from 'pg';
+import mysql from 'mysql2/promise';
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Configuracion } from '../config.js';
 import { obtenerConfig } from '../config.js';
 
-const { Pool } = pg;
+export interface ResultadoConsulta<T = Record<string, any>> {
+  rows: T[];
+  rowCount: number;
+  insertId?: number;
+}
 
-export type ClienteBd = pg.Pool | pg.PoolClient;
+export interface ClienteBd {
+  query<T = Record<string, any>>(
+    sql: string,
+    params?: unknown[],
+  ): Promise<ResultadoConsulta<T>>;
+}
 
-let poolGlobal: pg.Pool | null = null;
+let poolMysqlGlobal: Pool | null = null;
 
-export function crearPool(cfg: Configuracion = obtenerConfig()): pg.Pool {
+/**
+ * Convierte placeholders estilo PostgreSQL ($1, $2, ...) a ? para MySQL/TiDB,
+ * duplicando o reordenando los parámetros según el orden de aparición.
+ */
+function prepararSqlYParams(
+  sql: string,
+  params: unknown[] = [],
+): { sqlMysql: string; paramsMysql: unknown[] } {
+  if (!params || params.length === 0) {
+    return { sqlMysql: sql, paramsMysql: [] };
+  }
+
+  const paramsMysql: unknown[] = [];
+  const sqlMysql = sql.replace(/\$(\d+)/g, (_match, numStr) => {
+    const idx = Number(numStr) - 1;
+    const val = idx >= 0 && idx < params.length ? params[idx] : null;
+    paramsMysql.push(val === undefined ? null : val);
+    return '?';
+  });
+
+  return { sqlMysql, paramsMysql };
+}
+
+function envolverEjecutor(ejecutor: Pool | PoolConnection): ClienteBd {
+  return {
+    async query<T = Record<string, any>>(
+      sql: string,
+      params: unknown[] = [],
+    ): Promise<ResultadoConsulta<T>> {
+      const { sqlMysql, paramsMysql } = prepararSqlYParams(sql, params);
+      const [res] = await ejecutor.query(sqlMysql, paramsMysql);
+      if (Array.isArray(res)) {
+        return {
+          rows: res as T[],
+          rowCount: res.length,
+        };
+      }
+      const header = res as ResultSetHeader;
+      return {
+        rows: [],
+        rowCount: header.affectedRows ?? 0,
+        insertId: header.insertId,
+      };
+    },
+  };
+}
+
+export function crearPoolMysql(cfg: Configuracion = obtenerConfig()): Pool {
+  const url = new URL(cfg.DATABASE_URL);
   const ssl =
     cfg.DATABASE_SSL === 'false'
-      ? false
+      ? undefined
       : cfg.DATABASE_SSL === 'no-verify'
         ? { rejectUnauthorized: false }
         : { rejectUnauthorized: true };
 
-  return new Pool({
-    connectionString: cfg.DATABASE_URL,
+  return mysql.createPool({
+    host: url.hostname,
+    port: url.port ? Number(url.port) : 4000,
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.replace(/^\//, '') || 'test',
     ssl,
-    max: 15,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
+    timezone: 'Z',
+    waitForConnections: true,
+    connectionLimit: 15,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10_000,
   });
 }
 
-export function obtenerPool(): pg.Pool {
-  if (!poolGlobal) {
-    poolGlobal = crearPool();
+export function obtenerPool(): ClienteBd {
+  if (!poolMysqlGlobal) {
+    poolMysqlGlobal = crearPoolMysql();
   }
-  return poolGlobal;
+  return envolverEjecutor(poolMysqlGlobal);
 }
 
-export function establecerPool(pool: pg.Pool | null): void {
-  poolGlobal = pool;
+export function establecerPool(_pool: unknown): void {
+  // Mantenido por compatibilidad con pruebas si se reemplaza el pool
+  poolMysqlGlobal = _pool as Pool | null;
 }
 
 export async function cerrarPool(): Promise<void> {
-  if (poolGlobal) {
-    await poolGlobal.end();
-    poolGlobal = null;
+  if (poolMysqlGlobal) {
+    await poolMysqlGlobal.end();
+    poolMysqlGlobal = null;
   }
 }
 
@@ -47,23 +113,29 @@ export async function cerrarPool(): Promise<void> {
  * Ejecuta una función dentro de una transacción BEGIN ... COMMIT / ROLLBACK.
  */
 export async function enTransaccion<T>(
-  fn: (cliente: pg.PoolClient) => Promise<T>,
-  pool: pg.Pool = obtenerPool(),
+  fn: (cliente: ClienteBd) => Promise<T>,
+  _pool?: ClienteBd,
 ): Promise<T> {
-  const cliente = await pool.connect();
+  if (!poolMysqlGlobal) {
+    poolMysqlGlobal = crearPoolMysql();
+  }
+  const conexion = await poolMysqlGlobal.getConnection();
+  const cliente = envolverEjecutor(conexion);
   try {
-    await cliente.query('BEGIN');
+    await conexion.beginTransaction();
     const resultado = await fn(cliente);
-    await cliente.query('COMMIT');
+    await conexion.commit();
     return resultado;
   } catch (err) {
     try {
-      await cliente.query('ROLLBACK');
+      await conexion.rollback();
     } catch {
       // Ignorar fallo en rollback si la conexión ya se cerró
     }
     throw err;
   } finally {
-    cliente.release();
+    conexion.release();
   }
 }
+
+export type { RowDataPacket };

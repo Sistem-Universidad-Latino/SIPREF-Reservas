@@ -25,7 +25,7 @@ export async function registrarAuditoria(
   bd: ClienteBd,
   entrada: EntradaAuditoria,
 ): Promise<number> {
-  const { rows } = await bd.query(
+  const res = await bd.query(
     `
     INSERT INTO reservas_auditoria (
       actor_tipo,
@@ -40,7 +40,6 @@ export async function registrarAuditoria(
       user_agent
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    RETURNING id, ocurrido_en
     `,
     [
       entrada.actorTipo,
@@ -60,9 +59,8 @@ export async function registrarAuditoria(
     ],
   );
 
-  const fila = rows[0];
-  const auditoriaId = Number(fila.id);
-  const ocurridoEn = new Date(fila.ocurrido_en).toISOString();
+  const auditoriaId = Number(res.insertId ?? 0);
+  const ocurridoEn = new Date().toISOString();
 
   const cfg = obtenerConfig();
   if (cfg.PRINCIPAL_BITACORA_URL) {

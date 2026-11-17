@@ -107,21 +107,19 @@ export async function rutasCatalogos(app: FastifyInstance): Promise<void> {
           return { recurso: dto, creado: false };
         }
 
-        const { rows: insertados } = await tx.query(
+        const insertRes = await tx.query(
           `
           INSERT INTO reservas_recursos_catalogo (nombre, unidad, es_predefinido, creado_por)
           VALUES ($1, $2, FALSE, $3)
-          RETURNING id, nombre, unidad, es_predefinido
           `,
           [body.nombre, body.unidad, usuario.sub],
         );
 
-        const nuevo = insertados[0];
         const dto = {
-          id: Number(nuevo.id),
-          nombre: String(nuevo.nombre),
-          unidad: String(nuevo.unidad),
-          esPredefinido: Boolean(nuevo.es_predefinido),
+          id: Number(insertRes.insertId ?? 0),
+          nombre: body.nombre,
+          unidad: body.unidad,
+          esPredefinido: false,
         };
 
         await registrarAuditoria(tx, {

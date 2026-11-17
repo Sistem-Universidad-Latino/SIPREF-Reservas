@@ -13,7 +13,7 @@ export const MAX_RECORDATORIOS = 5;
 export function crearFilaRecordatorioPorDefecto(id = 'fila-1'): FilaRecordatorio {
   return {
     id,
-    sipref: false,
+    sipref: true,
     correo: true,
     anticipacion: 1,
     unidad: 'DIAS',

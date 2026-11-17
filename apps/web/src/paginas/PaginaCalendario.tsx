@@ -155,7 +155,8 @@ export function PaginaCalendario() {
                 <option value="">Todas las aulas y espacios</option>
                 {espacios.map((esp) => (
                   <option key={esp.id} value={esp.id}>
-                    {esp.nombre} · {esp.edificio} (Cap. {esp.capacidad})
+                    {esp.nombre}
+                    {esp.edificio ? ` (${esp.edificio})` : ''}
                   </option>
                 ))}
               </select>

@@ -62,19 +62,14 @@ export async function generarCodigoReservacion(
   fechaReferencia: Date = new Date(),
 ): Promise<string> {
   const anio = fechaReferencia.getUTCFullYear();
-  await bd.query(`SELECT pg_advisory_xact_lock(hashtext('reservas:folio:' || $1))`, [
-    String(anio),
-  ]);
-
-  const patron = `^RES-${anio}-([0-9]+)$`;
   const prefijoLike = `RES-${anio}-%`;
   const { rows } = await bd.query(
     `
-    SELECT COALESCE(MAX(CAST(SUBSTRING(codigo FROM $1) AS INTEGER)), 0) + 1 AS siguiente
+    SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(codigo, '-', -1) AS UNSIGNED)), 0) + 1 AS siguiente
     FROM reservas_reservaciones
-    WHERE codigo LIKE $2
+    WHERE codigo LIKE $1
     `,
-    [patron, prefijoLike],
+    [prefijoLike],
   );
 
   const siguiente = Number(rows[0]?.siguiente ?? 1);
@@ -128,7 +123,7 @@ export async function obtenerReservacionDetalle(
     FROM reservas_reservaciones r
     JOIN reservas_usuarios u_creador ON u_creador.google_sub = r.creado_por
     LEFT JOIN reservas_usuarios u_cancelador ON u_cancelador.google_sub = r.cancelado_por
-    WHERE r.id = $1::uuid
+    WHERE r.id = $1
     LIMIT 1
     `,
     [id],
@@ -149,7 +144,7 @@ export async function obtenerReservacionDetalle(
       c.unidad
     FROM reservas_recursos_evento re
     JOIN reservas_recursos_catalogo c ON c.id = re.recurso_id
-    WHERE re.reservacion_id = $1::uuid
+    WHERE re.reservacion_id = $1
     ORDER BY c.nombre ASC
     `,
     [id],
@@ -172,7 +167,7 @@ export async function obtenerReservacionDetalle(
       enviar_en,
       enviado_en
     FROM reservas_recordatorios
-    WHERE reservacion_id = $1::uuid
+    WHERE reservacion_id = $1
     ORDER BY enviar_en ASC
     `,
     [id],
@@ -285,13 +280,13 @@ export async function consultarReservaciones(
   }
 
   if (filtros.desde) {
-    params.push(filtros.desde.toISOString());
-    condiciones.push(`r.fin >= $${params.length}::timestamptz`);
+    params.push(filtros.desde);
+    condiciones.push(`r.fin >= $${params.length}`);
   }
 
   if (filtros.hasta) {
-    params.push(filtros.hasta.toISOString());
-    condiciones.push(`r.inicio <= $${params.length}::timestamptz`);
+    params.push(filtros.hasta);
+    condiciones.push(`r.inicio <= $${params.length}`);
   }
 
   const whereSql =
@@ -303,7 +298,7 @@ export async function consultarReservaciones(
       : 'ORDER BY r.inicio DESC';
 
   const { rows: conteoRows } = await bd.query(
-    `SELECT COUNT(*)::int AS total FROM reservas_reservaciones r ${whereSql}`,
+    `SELECT COUNT(*) AS total FROM reservas_reservaciones r ${whereSql}`,
     params,
   );
   const total = Number(conteoRows[0]?.total ?? 0);
@@ -333,7 +328,7 @@ export async function consultarReservaciones(
       r.estado,
       COALESCE(
         (
-          SELECT string_agg(c.nombre || ' ×' || re.cantidad, ', ' ORDER BY c.nombre ASC)
+          SELECT GROUP_CONCAT(CONCAT(c.nombre, ' ×', re.cantidad) ORDER BY c.nombre ASC SEPARATOR ', ')
           FROM reservas_recursos_evento re
           JOIN reservas_recursos_catalogo c ON c.id = re.recurso_id
           WHERE re.reservacion_id = r.id

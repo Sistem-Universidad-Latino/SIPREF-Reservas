@@ -23,9 +23,8 @@ export async function encolarNotificacionSalida(
 ): Promise<void> {
   await bd.query(
     `
-    INSERT INTO reservas_notificaciones_salida (tipo, clave_idempotencia, payload)
-    VALUES ($1, $2, $3::jsonb)
-    ON CONFLICT (clave_idempotencia) DO NOTHING
+    INSERT IGNORE INTO reservas_notificaciones_salida (tipo, clave_idempotencia, payload)
+    VALUES ($1, $2, $3)
     `,
     [
       notificacion.tipo,
@@ -123,11 +122,11 @@ export async function procesarOutbox(
         `
         UPDATE reservas_notificaciones_salida
         SET intentos = $2,
-            proximo_intento_en = now() + ($3 || ' minutes')::interval,
+            proximo_intento_en = DATE_ADD(NOW(), INTERVAL $3 MINUTE),
             ultimo_error = $4
         WHERE id = $1
         `,
-        [id, nuevoIntento, String(esperaMin), mensajeError],
+        [id, nuevoIntento, esperaMin, mensajeError],
       );
       fallidos += 1;
     }

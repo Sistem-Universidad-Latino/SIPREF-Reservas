@@ -153,7 +153,8 @@ export function ModalReagendar({
           >
             {espacios.map((esp) => (
               <option key={esp.id} value={esp.id}>
-                {esp.nombre} · {esp.edificio} (Capacidad: {esp.capacidad})
+                {esp.nombre}
+                {esp.edificio ? ` (${esp.edificio})` : ''}
               </option>
             ))}
           </select>

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { enTransaccion, obtenerPool } from '../bd/pool.js';
@@ -345,9 +346,10 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
 
         if (mapaRecursos.size > 0) {
           const idsRecursos = Array.from(mapaRecursos.keys());
+          const placeholders = idsRecursos.map((_, idx) => `$${idx + 1}`).join(', ');
           const { rows: catRows } = await tx.query(
-            `SELECT id FROM reservas_recursos_catalogo WHERE id = ANY($1::int[]) AND activo = TRUE`,
-            [idsRecursos],
+            `SELECT id FROM reservas_recursos_catalogo WHERE id IN (${placeholders}) AND activo = TRUE`,
+            idsRecursos,
           );
           if (catRows.length !== idsRecursos.length) {
             throw new ErrorApi(
@@ -362,11 +364,12 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
         const codigo =
           body.codigo ?? (await generarCodigoReservacion(tx, inicio));
 
-        let reservacionId: string;
+        const reservacionId = crypto.randomUUID();
         try {
-          const { rows: insRows } = await tx.query(
+          await tx.query(
             `
             INSERT INTO reservas_reservaciones (
+              id,
               codigo,
               tipo_evento,
               espacio_id,
@@ -382,17 +385,17 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
               estado,
               creado_por
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'PROGRAMADA', $13)
-            RETURNING id
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'PROGRAMADA', $14)
             `,
             [
+              reservacionId,
               codigo,
               body.tipoEvento,
               espacio.id,
               espacio.nombre,
               body.nombreEvento,
-              inicio.toISOString(),
-              fin.toISOString(),
+              inicio,
+              fin,
               body.responsable,
               body.correoResponsable || null,
               body.descripcion || null,
@@ -401,10 +404,9 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
               usuario.sub,
             ],
           );
-          reservacionId = String(insRows[0].id);
         } catch (err: unknown) {
           const pgErr = err as { code?: string };
-          if (pgErr.code === '23505') {
+          if (pgErr.code === '23505' || pgErr.code === 'ER_DUP_ENTRY') {
             throw new ErrorApi(
               409,
               'DUPLICADO',
@@ -426,7 +428,7 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
           await tx.query(
             `
             INSERT INTO reservas_recursos_evento (reservacion_id, recurso_id, cantidad)
-            VALUES ($1::uuid, $2, $3)
+            VALUES ($1, $2, $3)
             `,
             [reservacionId, recursoId, cantidad],
           );
@@ -441,14 +443,14 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
           await tx.query(
             `
             INSERT INTO reservas_recordatorios (reservacion_id, canal, anticipacion, unidad, enviar_en)
-            VALUES ($1::uuid, $2, $3, $4, $5)
+            VALUES ($1, $2, $3, $4, $5)
             `,
             [
               reservacionId,
               rec.canal,
               rec.anticipacion,
               rec.unidad,
-              enviarEn.toISOString(),
+              enviarEn,
             ],
           );
         }
@@ -550,7 +552,7 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
           `
           SELECT id, espacio_id, espacio_nombre, inicio, fin, estado, creado_por, version
           FROM reservas_reservaciones
-          WHERE id = $1::uuid
+          WHERE id = $1
           FOR UPDATE
           `,
           [id],
@@ -619,16 +621,16 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
               espacio_nombre = $3,
               inicio = $4,
               fin = $5,
-              actualizado_en = now(),
+              actualizado_en = NOW(),
               version = version + 1
-          WHERE id = $1::uuid
+          WHERE id = $1
           `,
           [
             id,
             espacio.id,
             espacio.nombre,
-            inicio.toISOString(),
-            fin.toISOString(),
+            inicio,
+            fin,
           ],
         );
 
@@ -637,7 +639,7 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
           `
           SELECT id, anticipacion, unidad
           FROM reservas_recordatorios
-          WHERE reservacion_id = $1::uuid AND enviado_en IS NULL
+          WHERE reservacion_id = $1 AND enviado_en IS NULL
           `,
           [id],
         );
@@ -650,7 +652,7 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
           );
           await tx.query(
             `UPDATE reservas_recordatorios SET enviar_en = $2 WHERE id = $1`,
-            [rec.id, nuevoEnviarEn.toISOString()],
+            [rec.id, nuevoEnviarEn],
           );
         }
 
@@ -699,7 +701,7 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
           `
           SELECT id, estado, creado_por, version
           FROM reservas_reservaciones
-          WHERE id = $1::uuid
+          WHERE id = $1
           FOR UPDATE
           `,
           [id],
@@ -725,11 +727,11 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
           UPDATE reservas_reservaciones
           SET estado = 'CANCELADA',
               cancelado_por = $2,
-              cancelado_en = now(),
+              cancelado_en = NOW(),
               motivo_cancelacion = $3,
-              actualizado_en = now(),
+              actualizado_en = NOW(),
               version = version + 1
-          WHERE id = $1::uuid
+          WHERE id = $1
           `,
           [id, usuario.sub, body.motivo],
         );

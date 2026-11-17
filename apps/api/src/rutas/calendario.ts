@@ -59,7 +59,7 @@ export async function rutasCalendario(app: FastifyInstance): Promise<void> {
           ? query.espacioId.trim()
           : undefined;
 
-      const params: unknown[] = [desde.toISOString(), hasta.toISOString()];
+      const params: unknown[] = [desde, hasta];
       let filtroEspacioSql = '';
       if (espacioId) {
         params.push(espacioId);
@@ -82,7 +82,7 @@ export async function rutasCalendario(app: FastifyInstance): Promise<void> {
             r.creado_por,
             COALESCE(
               (
-                SELECT string_agg(c.nombre || ' ×' || re.cantidad, ', ' ORDER BY c.nombre ASC)
+                SELECT GROUP_CONCAT(CONCAT(c.nombre, ' ×', re.cantidad) ORDER BY c.nombre ASC SEPARATOR ', ')
                 FROM reservas_recursos_evento re
                 JOIN reservas_recursos_catalogo c ON c.id = re.recurso_id
                 WHERE re.reservacion_id = r.id
@@ -91,8 +91,8 @@ export async function rutasCalendario(app: FastifyInstance): Promise<void> {
             ) AS resumen_recursos
           FROM reservas_reservaciones r
           WHERE r.estado = 'PROGRAMADA'
-            AND r.inicio < $2::timestamptz
-            AND r.fin > $1::timestamptz
+            AND r.inicio < $2
+            AND r.fin > $1
             ${filtroEspacioSql}
           ORDER BY r.inicio ASC
           `,

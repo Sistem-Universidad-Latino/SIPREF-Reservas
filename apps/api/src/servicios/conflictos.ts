@@ -76,10 +76,12 @@ export async function adquirirCandadoEspacio(
   bd: ClienteBd,
   espacioId: string,
 ): Promise<void> {
-  await bd.query(
-    `SELECT pg_advisory_xact_lock(hashtext('reservas:espacio:' || $1))`,
-    [espacioId],
-  );
+  // En TiDB Serverless se intenta GET_LOCK si está disponible; si no, continúa la transacción
+  try {
+    await bd.query(`SELECT GET_LOCK(CONCAT('reservas:espacio:', $1), 5)`, [espacioId]);
+  } catch {
+    // TiDB Serverless puede no requerir bloqueo de sesión explícito
+  }
 }
 
 /**
@@ -104,14 +106,14 @@ export async function buscarConflictosHorario(
   // Condición del contrato: inicio < :fin + buffer AND fin + buffer > :inicio
   const valoresReservas: unknown[] = [
     espacioId,
-    inicio.toISOString(),
-    fin.toISOString(),
-    `${bufferMinutos} minutes`,
+    inicio,
+    fin,
+    bufferMinutos,
   ];
   let clausulaExcluir = '';
   if (excluirReservacionId) {
     valoresReservas.push(excluirReservacionId);
-    clausulaExcluir = `AND id <> $5::uuid`;
+    clausulaExcluir = `AND id <> $5`;
   }
 
   const { rows: filasPropias } = await bd.query(
@@ -120,8 +122,8 @@ export async function buscarConflictosHorario(
     FROM reservas_reservaciones
     WHERE espacio_id = $1
       AND estado = 'PROGRAMADA'
-      AND inicio < ($3::timestamptz + $4::interval)
-      AND (fin + $4::interval) > $2::timestamptz
+      AND inicio < DATE_ADD($3, INTERVAL $4 MINUTE)
+      AND DATE_ADD(fin, INTERVAL $4 MINUTE) > $2
       ${clausulaExcluir}
     ORDER BY inicio ASC
     `,

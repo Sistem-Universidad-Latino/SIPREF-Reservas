@@ -1,4 +1,4 @@
-import type pg from 'pg';
+import type { ClienteBd } from '../bd/pool.js';
 import { enTransaccion, obtenerPool } from '../bd/pool.js';
 import { registrarAuditoria } from './auditoria.js';
 import { enviarCorreoRecordatorio } from './correo.js';
@@ -14,80 +14,71 @@ export interface ResultadoTareas {
 }
 
 export async function ejecutarTareasProgramadas(
-  pool: pg.Pool = obtenerPool(),
+  pool: ClienteBd = obtenerPool(),
 ): Promise<ResultadoTareas> {
-  const clienteLock = await pool.connect();
   try {
-    const { rows: lockRows } = await clienteLock.query(
-      `SELECT pg_try_advisory_lock(hashtext('reservas:tareas_programadas')) AS adquirido`,
-    );
-    const adquirido = Boolean(lockRows[0]?.adquirido);
-    if (!adquirido) {
-      return {
-        ejecutado: false,
-        motivoOmitido: 'Otra ejecución de tareas programadas ya está en curso.',
-        solicitudesExpiradas: 0,
-        recordatoriosEnviados: 0,
-        outbox: { enviados: 0, fallidos: 0, omitidos: 0 },
-        sesionesPurgadas: 0,
-      };
-    }
+    // 1) Expirar solicitudes PENDIENTE con expira_en < now()
+    const solicitudesExpiradas = await enTransaccion(async (tx) => {
+      const { rows: vencidas } = await tx.query(
+        `
+        SELECT id, google_sub, correo, nombre, foto_url, intentado_en
+        FROM reservas_solicitudes_acceso
+        WHERE estado = 'PENDIENTE'
+          AND expira_en < NOW()
+        FOR UPDATE
+        `,
+      );
 
-    try {
-      // 1) Expirar solicitudes PENDIENTE con expira_en < now()
-      const solicitudesExpiradas = await enTransaccion(async (tx) => {
-        const { rows: vencidas } = await tx.query(
+      for (const sol of vencidas) {
+        await tx.query(
           `
           UPDATE reservas_solicitudes_acceso
           SET estado = 'EXPIRADA'
-          WHERE estado = 'PENDIENTE'
-            AND expira_en < now()
-          RETURNING id, google_sub, correo, nombre, foto_url, intentado_en
+          WHERE id = $1
           `,
+          [sol.id],
+        );
+        await tx.query(
+          `
+          UPDATE reservas_usuarios
+          SET estado = 'EXPIRADA', actualizado_en = NOW()
+          WHERE google_sub = $1 AND estado = 'PENDIENTE'
+          `,
+          [sol.google_sub],
         );
 
-        for (const sol of vencidas) {
-          await tx.query(
-            `
-            UPDATE reservas_usuarios
-            SET estado = 'EXPIRADA', actualizado_en = now()
-            WHERE google_sub = $1 AND estado = 'PENDIENTE'
-            `,
-            [sol.google_sub],
-          );
-
-          const claveIdem = `solicitud_acceso.expirada:${sol.id}`;
-          await encolarNotificacionSalida(tx, {
-            tipo: 'solicitud_acceso.expirada',
-            claveIdempotencia: claveIdem,
-            payload: {
-              evento: 'solicitud_acceso.expirada',
-              idEvento: claveIdem,
-              ocurridoEn: new Date().toISOString(),
-              datos: {
-                solicitudId: String(sol.id),
-                nombre: String(sol.nombre),
-                correo: String(sol.correo),
-                fotoUrl: sol.foto_url ? String(sol.foto_url) : null,
-                intentadoEn: new Date(sol.intentado_en).toISOString(),
-              },
+        const claveIdem = `solicitud_acceso.expirada:${sol.id}`;
+        await encolarNotificacionSalida(tx, {
+          tipo: 'solicitud_acceso.expirada',
+          claveIdempotencia: claveIdem,
+          payload: {
+            evento: 'solicitud_acceso.expirada',
+            idEvento: claveIdem,
+            ocurridoEn: new Date().toISOString(),
+            datos: {
+              solicitudId: String(sol.id),
+              nombre: String(sol.nombre),
+              correo: String(sol.correo),
+              fotoUrl: sol.foto_url ? String(sol.foto_url) : null,
+              intentadoEn: new Date(sol.intentado_en).toISOString(),
             },
-          });
+          },
+        });
 
-          await registrarAuditoria(tx, {
-            actorTipo: 'SISTEMA',
-            actorId: 'cron',
-            actorNombre: 'Tareas programadas',
-            accion: 'solicitud.expirar',
-            entidad: 'reservas_solicitudes_acceso',
-            entidadId: String(sol.id),
-            datosAntes: { estado: 'PENDIENTE' },
-            datosDespues: { estado: 'EXPIRADA' },
-          });
-        }
+        await registrarAuditoria(tx, {
+          actorTipo: 'SISTEMA',
+          actorId: 'cron',
+          actorNombre: 'Tareas programadas',
+          accion: 'solicitud.expirar',
+          entidad: 'reservas_solicitudes_acceso',
+          entidadId: String(sol.id),
+          datosAntes: { estado: 'PENDIENTE' },
+          datosDespues: { estado: 'EXPIRADA' },
+        });
+      }
 
-        return vencidas.length;
-      }, pool);
+      return vencidas.length;
+    }, pool);
 
       // 2) Enviar recordatorios con enviar_en <= now() que no se han enviado
       let recordatoriosEnviados = 0;
@@ -167,8 +158,8 @@ export async function ejecutarTareasProgramadas(
       const { rowCount: sesionesPurgadas } = await pool.query(
         `
         DELETE FROM reservas_sesiones
-        WHERE expira_en < now()
-           OR (revocada_en IS NOT NULL AND revocada_en < now() - INTERVAL '1 day')
+        WHERE expira_en < NOW()
+           OR (revocada_en IS NOT NULL AND revocada_en < DATE_SUB(NOW(), INTERVAL 1 DAY))
         `,
       );
 
@@ -179,12 +170,7 @@ export async function ejecutarTareasProgramadas(
         outbox,
         sesionesPurgadas: sesionesPurgadas ?? 0,
       };
-    } finally {
-      await clienteLock.query(
-        `SELECT pg_advisory_unlock(hashtext('reservas:tareas_programadas'))`,
-      );
-    }
-  } finally {
-    clienteLock.release();
+  } catch (err) {
+    throw err;
   }
 }

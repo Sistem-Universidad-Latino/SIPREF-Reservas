@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { OAuth2Client } from 'google-auth-library';
 import { z } from 'zod';
@@ -143,12 +144,12 @@ async function procesarIngresoIdentidad(
       await tx.query(
         `
         INSERT INTO reservas_sesiones (token_hash, google_sub, expira_en, ip, user_agent)
-        VALUES ($1, $2, now() + ($3 || ' seconds')::interval, $4, $5)
+        VALUES ($1, $2, DATE_ADD(NOW(), INTERVAL $3 SECOND), $4, $5)
         `,
         [
           tokenHash,
           entrada.sub,
-          String(MAX_AGE_SESION_SEG),
+          MAX_AGE_SESION_SEG,
           entrada.ip,
           entrada.userAgent,
         ],
@@ -175,54 +176,89 @@ async function procesarIngresoIdentidad(
     }
 
     if (estadoActual === 'PENDIENTE') {
-      const { rows: solRows } = await tx.query(
+      const { rows: solExistentes } = await tx.query(
         `
-        INSERT INTO reservas_solicitudes_acceso (
-          google_sub,
-          correo,
-          nombre,
-          foto_url,
-          estado,
-          intentado_en,
-          ultimo_intento_en,
-          intentos,
-          expira_en,
-          ip_origen,
-          user_agent
-        )
-        VALUES (
-          $1, $2, $3, $4, 'PENDIENTE', now(), now(), 1,
-          now() + ($5 || ' days')::interval, $6, $7
-        )
-        ON CONFLICT (google_sub) WHERE estado = 'PENDIENTE'
-        DO UPDATE SET
-          intentos = reservas_solicitudes_acceso.intentos + 1,
-          ultimo_intento_en = now(),
-          correo = EXCLUDED.correo,
-          nombre = EXCLUDED.nombre,
-          foto_url = COALESCE(EXCLUDED.foto_url, reservas_solicitudes_acceso.foto_url),
-          ip_origen = EXCLUDED.ip_origen,
-          user_agent = EXCLUDED.user_agent
-        RETURNING id, intentado_en, (xmax = 0) AS recien_creada
+        SELECT id, intentado_en
+        FROM reservas_solicitudes_acceso
+        WHERE google_sub = $1 AND estado = 'PENDIENTE'
+        LIMIT 1
+        FOR UPDATE
         `,
-        [
-          entrada.sub,
-          entrada.correo.toLowerCase(),
-          entrada.nombre,
-          entrada.fotoUrl,
-          String(configSistema.solicitudExpiracionDias),
-          entrada.ip,
-          entrada.userAgent,
-        ],
+        [entrada.sub],
       );
 
-      const sol = solRows[0];
-      const solicitudId = String(sol.id);
-      const recienCreada = Boolean(sol.recien_creada);
+      let solicitudId: string;
+      let intentadoIso: string;
+      let recienCreada = false;
+
+      if (solExistentes.length > 0) {
+        const solPrev = solExistentes[0];
+        solicitudId = String(solPrev.id);
+        intentadoIso = new Date(solPrev.intentado_en).toISOString();
+
+        await tx.query(
+          `
+          UPDATE reservas_solicitudes_acceso
+          SET intentos = intentos + 1,
+              ultimo_intento_en = NOW(),
+              correo = $2,
+              nombre = $3,
+              foto_url = COALESCE($4, foto_url),
+              ip_origen = $5,
+              user_agent = $6
+          WHERE id = $1
+          `,
+          [
+            solicitudId,
+            entrada.correo.toLowerCase(),
+            entrada.nombre,
+            entrada.fotoUrl,
+            entrada.ip,
+            entrada.userAgent,
+          ],
+        );
+      } else {
+        solicitudId = crypto.randomUUID();
+        const ahora = new Date();
+        intentadoIso = ahora.toISOString();
+        recienCreada = true;
+
+        await tx.query(
+          `
+          INSERT INTO reservas_solicitudes_acceso (
+            id,
+            google_sub,
+            correo,
+            nombre,
+            foto_url,
+            estado,
+            intentado_en,
+            ultimo_intento_en,
+            intentos,
+            expira_en,
+            ip_origen,
+            user_agent
+          )
+          VALUES (
+            $1, $2, $3, $4, $5, 'PENDIENTE', NOW(), NOW(), 1,
+            DATE_ADD(NOW(), INTERVAL $6 DAY), $7, $8
+          )
+          `,
+          [
+            solicitudId,
+            entrada.sub,
+            entrada.correo.toLowerCase(),
+            entrada.nombre,
+            entrada.fotoUrl,
+            configSistema.solicitudExpiracionDias,
+            entrada.ip,
+            entrada.userAgent,
+          ],
+        );
+      }
 
       if (recienCreada) {
         const claveIdem = `solicitud_acceso.creada:${solicitudId}`;
-        const intentadoIso = new Date(sol.intentado_en).toISOString();
 
         await encolarNotificacionSalida(tx, {
           tipo: 'solicitud_acceso.creada',
@@ -283,28 +319,28 @@ async function procesarIngresoIdentidad(
     if (ultimas.length > 0) {
       solicitudId = String(ultimas[0].id);
     } else {
-      const { rows: creada } = await tx.query(
+      solicitudId = crypto.randomUUID();
+      await tx.query(
         `
         INSERT INTO reservas_solicitudes_acceso (
-          google_sub, correo, nombre, foto_url, estado, expira_en, resuelto_en
+          id, google_sub, correo, nombre, foto_url, estado, expira_en, resuelto_en
         )
         VALUES (
-          $1, $2, $3, $4, $5,
-          now() + ($6 || ' days')::interval,
-          CASE WHEN $5 IN ('APROBADA', 'RECHAZADA', 'REVOCADA') THEN now() ELSE NULL END
+          $1, $2, $3, $4, $5, $6,
+          DATE_ADD(NOW(), INTERVAL $7 DAY),
+          CASE WHEN $6 IN ('APROBADA', 'RECHAZADA', 'REVOCADA') THEN NOW() ELSE NULL END
         )
-        RETURNING id
         `,
         [
+          solicitudId,
           entrada.sub,
           entrada.correo.toLowerCase(),
           entrada.nombre,
           entrada.fotoUrl,
           estadoActual,
-          String(configSistema.solicitudExpiracionDias),
+          configSistema.solicitudExpiracionDias,
         ],
       );
-      solicitudId = String(creada[0].id);
     }
 
     return {
@@ -521,7 +557,7 @@ export async function rutasAuth(app: FastifyInstance): Promise<void> {
           SELECT id, nombre, correo, foto_url, estado, intentado_en, expira_en, resuelto_en, rol_asignado
           FROM reservas_solicitudes_acceso
           WHERE google_sub = $1
-          ORDER BY (id = $2::uuid) DESC, intentado_en DESC
+          ORDER BY (id = $2) DESC, intentado_en DESC
           LIMIT 1
           `
         : `
@@ -540,12 +576,12 @@ export async function rutasAuth(app: FastifyInstance): Promise<void> {
       await pool.query(
         `
         INSERT INTO reservas_sesiones (token_hash, google_sub, expira_en, ip, user_agent)
-        VALUES ($1, $2, now() + ($3 || ' seconds')::interval, $4, $5)
+        VALUES ($1, $2, DATE_ADD(NOW(), INTERVAL $3 SECOND), $4, $5)
         `,
         [
           tokenHash,
           sub,
-          String(MAX_AGE_SESION_SEG),
+          MAX_AGE_SESION_SEG,
           request.ip,
           request.headers['user-agent'] ?? null,
         ],
@@ -614,7 +650,7 @@ export async function rutasAuth(app: FastifyInstance): Promise<void> {
       const datos = esquemaPerfil.parse(request.body);
       const pool = obtenerPool();
       await pool.query(
-        `UPDATE reservas_usuarios SET nombre = $1 WHERE sub = $2`,
+        `UPDATE reservas_usuarios SET nombre = $1 WHERE google_sub = $2`,
         [datos.nombre, u.sub],
       );
       return {
@@ -634,11 +670,11 @@ export async function rutasAuth(app: FastifyInstance): Promise<void> {
     { preHandler: [requerirSesionAprobada] },
     async (request, reply) => {
       const u = request.usuario!;
-      const pool = obtenerPool();
-      await pool.query(
-        `DELETE FROM reservas_usuarios WHERE sub = $1`,
-        [u.sub],
-      );
+      await enTransaccion(async (tx) => {
+        await tx.query(`DELETE FROM reservas_sesiones WHERE google_sub = $1`, [u.sub]);
+        await tx.query(`DELETE FROM reservas_solicitudes_acceso WHERE google_sub = $1`, [u.sub]);
+        await tx.query(`DELETE FROM reservas_usuarios WHERE google_sub = $1`, [u.sub]);
+      });
       limpiarCookiesAutenticacion(reply);
       return reply.status(204).send();
     },
