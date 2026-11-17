@@ -16,7 +16,6 @@ import {
 import { useCalendario, useConfiguracion, useEspacios } from '../api/consultas';
 import type { EventoCalendario } from '../api/tipos';
 import {
-  LISTA_TIPOS_EVENTO,
   obtenerInfoEstadoReservacion,
   obtenerInfoTipoEvento,
 } from '../utilidades/catalogos';
@@ -173,8 +172,8 @@ export function PaginaCalendario() {
           </div>
         </div>
 
-        {/* Controles de periodo, selector de vista y leyenda */}
-        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 border-t border-slate-100 pt-4">
+        {/* Controles de periodo y selector de vista */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50/70 p-1">
               <button
@@ -233,23 +232,6 @@ export function PaginaCalendario() {
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Leyenda de tipos de evento */}
-          <div className="flex flex-wrap items-center gap-3 text-xs">
-            {LISTA_TIPOS_EVENTO.map((t) => (
-              <span
-                key={t.tipo}
-                className="inline-flex items-center gap-1.5 text-slate-600 font-semibold"
-              >
-                <span className={`h-2.5 w-2.5 rounded-full ${t.clasesPunto}`} />
-                {t.etiqueta}
-              </span>
-            ))}
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#1c355e]/40 bg-[#1c355e]/5 px-2.5 py-1 text-[11px] font-bold text-[#1c355e]">
-              <Lock className="w-3 h-3" />
-              SIPREF (horario fijo)
-            </span>
           </div>
         </div>
       </div>
