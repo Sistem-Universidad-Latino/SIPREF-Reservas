@@ -37,7 +37,6 @@ import { ModalCancelar } from '../componentes/ModalCancelar';
 import { PanelExpediente } from '../componentes/PanelExpediente';
 
 type VistaCalendario = 'mes' | 'semana' | 'dia';
-type FiltroOrigen = 'TODOS' | 'RESERVAS' | 'SIPREF';
 
 const DIAS_SEMANA_CORTOS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const HORAS_AGENDA = Array.from({ length: 14 }, (_, i) => i + 7); // 07:00 a 20:00
@@ -55,7 +54,6 @@ export function PaginaCalendario() {
   const [vista, setVista] = useState<VistaCalendario>('mes');
   const [espacioFiltro, setEspacioFiltro] = useState<string>('');
   const [busqueda, setBusqueda] = useState<string>('');
-  const [filtroOrigen, setFiltroOrigen] = useState<FiltroOrigen>('TODOS');
   const [expedienteId, setExpedienteId] = useState<string | null>(null);
   const [eventoACancelar, setEventoACancelar] = useState<EventoCalendario | null>(null);
 
@@ -92,17 +90,15 @@ export function PaginaCalendario() {
 
   const eventosFiltrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
-    return eventos.filter((ev) => {
-      if (filtroOrigen !== 'TODOS' && ev.origen !== filtroOrigen) return false;
-      if (!termino) return true;
-      return (
+    if (!termino) return eventos;
+    return eventos.filter(
+      (ev) =>
         ev.nombreEvento.toLowerCase().includes(termino) ||
         ev.responsable.toLowerCase().includes(termino) ||
         ev.espacioNombre.toLowerCase().includes(termino) ||
-        ev.tipoEvento.toLowerCase().includes(termino)
-      );
-    });
-  }, [eventos, filtroOrigen, busqueda]);
+        ev.tipoEvento.toLowerCase().includes(termino),
+    );
+  }, [eventos, busqueda]);
 
   // Agrupar eventos filtrados por YYYY-MM-DD en zona America/Mexico_City
   const eventosPorDia = useMemo(() => {
@@ -121,13 +117,11 @@ export function PaginaCalendario() {
     [eventosPorDia, fechaSeleccionada],
   );
 
-  const hayFiltrosActivos =
-    Boolean(espacioFiltro) || Boolean(busqueda.trim()) || filtroOrigen !== 'TODOS';
+  const hayFiltrosActivos = Boolean(espacioFiltro) || Boolean(busqueda.trim());
 
   const limpiarFiltros = () => {
     setEspacioFiltro('');
     setBusqueda('');
-    setFiltroOrigen('TODOS');
   };
 
   const navegarAnterior = () => {
@@ -295,34 +289,6 @@ export function PaginaCalendario() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Filtro por origen */}
-            <div
-              role="group"
-              aria-label="Filtrar origen de eventos"
-              className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-0.5 text-[11px] font-bold"
-            >
-              {(
-                [
-                  { id: 'TODOS', etiqueta: 'Todos' },
-                  { id: 'RESERVAS', etiqueta: 'Reservas' },
-                  { id: 'SIPREF', etiqueta: 'SIPREF' },
-                ] as const
-              ).map((op) => (
-                <button
-                  key={op.id}
-                  type="button"
-                  onClick={() => setFiltroOrigen(op.id)}
-                  className={`rounded-lg px-2.5 py-1 transition-all cursor-pointer ${
-                    filtroOrigen === op.id
-                      ? 'bg-white text-[#1c355e] shadow-2xs border border-slate-200/70'
-                      : 'text-slate-500 hover:text-[#1c355e]'
-                  }`}
-                >
-                  {op.etiqueta}
-                </button>
-              ))}
-            </div>
-
             <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-600">
               <span className="h-2 w-2 rounded-full bg-[#1c355e]" />
               {eventosFiltrados.length}{' '}
