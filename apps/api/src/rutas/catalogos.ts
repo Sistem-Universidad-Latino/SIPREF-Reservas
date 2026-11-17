@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { enTransaccion, obtenerPool } from '../bd/pool.js';
+import { ErrorApi } from '../errores.js';
 import { listarEspacios } from '../principal/adaptador.js';
 import { requerirSesionAprobada } from '../seguridad/guardias.js';
 import { registrarAuditoria } from '../servicios/auditoria.js';
@@ -75,7 +76,7 @@ export async function rutasCatalogos(app: FastifyInstance): Promise<void> {
       const { recurso, creado } = await enTransaccion(async (tx) => {
         const { rows: existentes } = await tx.query(
           `
-          SELECT id, nombre, unidad, es_predefinido
+          SELECT id, nombre, unidad, es_predefinido, activo
           FROM reservas_recursos_catalogo
           WHERE lower(nombre) = lower($1)
           LIMIT 1
@@ -85,10 +86,17 @@ export async function rutasCatalogos(app: FastifyInstance): Promise<void> {
 
         if (existentes.length > 0) {
           const ex = existentes[0];
+          const estabaInactivo = !Boolean(ex.activo);
+          if (estabaInactivo) {
+            await tx.query(
+              `UPDATE reservas_recursos_catalogo SET activo = TRUE, unidad = $2 WHERE id = $1`,
+              [ex.id, body.unidad],
+            );
+          }
           const dto = {
             id: Number(ex.id),
             nombre: String(ex.nombre),
-            unidad: String(ex.unidad),
+            unidad: estabaInactivo ? body.unidad : String(ex.unidad),
             esPredefinido: Boolean(ex.es_predefinido),
           };
 
@@ -138,6 +146,53 @@ export async function rutasCatalogos(app: FastifyInstance): Promise<void> {
       }, pool);
 
       return reply.status(creado ? 201 : 200).send(recurso);
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/recursos/:id',
+    { preHandler: [requerirSesionAprobada] },
+    async (request, reply) => {
+      const idNum = Number(request.params.id);
+      if (!Number.isInteger(idNum) || idNum <= 0) {
+        throw new ErrorApi(400, 'VALIDACION', 'Identificador de material no válido.');
+      }
+
+      const usuario = request.usuario!;
+      const pool = obtenerPool();
+
+      await enTransaccion(async (tx) => {
+        const { rows } = await tx.query(
+          `SELECT id, nombre, es_predefinido, activo FROM reservas_recursos_catalogo WHERE id = $1 LIMIT 1`,
+          [idNum],
+        );
+        if (rows.length === 0 || !rows[0].activo) {
+          throw new ErrorApi(404, 'NO_ENCONTRADO', 'Material no encontrado en el catálogo.');
+        }
+        if (Boolean(rows[0].es_predefinido)) {
+          throw new ErrorApi(403, 'PROHIBIDO', 'No es posible eliminar un material predefinido del catálogo.');
+        }
+
+        await tx.query(
+          `UPDATE reservas_recursos_catalogo SET activo = FALSE WHERE id = $1`,
+          [idNum],
+        );
+
+        await registrarAuditoria(tx, {
+          actorTipo: 'USUARIO_RESERVAS',
+          actorId: usuario.sub,
+          actorNombre: usuario.nombre,
+          accion: 'recurso.eliminar',
+          entidad: 'reservas_recursos_catalogo',
+          entidadId: String(idNum),
+          datosAntes: { nombre: String(rows[0].nombre), activo: true },
+          datosDespues: { activo: false },
+          ip: request.ip,
+          userAgent: request.headers['user-agent'] ?? null,
+        });
+      }, pool);
+
+      return reply.status(204).send();
     },
   );
 }

@@ -11,22 +11,30 @@ import {
   Clock,
   Loader2,
   Mail,
+  Minus,
+  Package,
+  Plus,
   Trash2,
   User,
 } from 'lucide-react';
 import {
   consultarDisponibilidad,
   useConfiguracion,
+  useCrearRecurso,
   useCrearReservacion,
+  useEliminarRecurso,
   useEspacios,
+  useRecursos,
   useYo,
 } from '../api/consultas';
 import { esApiError, mensajeDeError } from '../api/cliente';
 import type {
   Conflicto,
   DisponibilidadRespuesta,
+  Recurso,
   UnidadAnticipacion,
 } from '../api/tipos';
+import { Modal } from '../componentes/Modal';
 import { OPCIONES_UNIDAD_ANTICIPACION } from '../utilidades/catalogos';
 import {
   calcularDuracion,
@@ -56,7 +64,10 @@ export function PaginaNuevaReservacion() {
   const { data: yo } = useYo();
   const { data: config } = useConfiguracion();
   const { data: espacios = [] } = useEspacios();
+  const { data: recursosCatalogo = [] } = useRecursos();
 
+  const crearRecursoMut = useCrearRecurso();
+  const eliminarRecursoMut = useEliminarRecurso();
   const crearReservacionMut = useCrearReservacion();
 
   const hoyYmd = useMemo(() => extraerFechaMexico(new Date()), []);
@@ -93,6 +104,14 @@ export function PaginaNuevaReservacion() {
       setEspacioId(espacios[0].id);
     }
   }, [espacios, espacioId]);
+
+  // Materiales y equipo seleccionados: mapa recursoId -> cantidad
+  const [recursosSeleccionados, setRecursosSeleccionados] = useState<Record<number, number>>({});
+  const [mostrarAgregarMaterial, setMostrarAgregarMaterial] = useState(false);
+  const [nuevoMaterialNombre, setNuevoMaterialNombre] = useState('');
+  const [nuevoMaterialRequiereCantidad, setNuevoMaterialRequiereCantidad] = useState(true);
+  const [errorNuevoMaterial, setErrorNuevoMaterial] = useState<string | null>(null);
+  const [materialAEliminar, setMaterialAEliminar] = useState<Recurso | null>(null);
 
   // Recordatorios: por defecto 1 fila con SIPREF implícito y Correo
   const [filasRecordatorios, setFilasRecordatorios] = useState<FilaRecordatorio[]>([
@@ -158,6 +177,73 @@ export function PaginaNuevaReservacion() {
       controlador.abort();
     };
   }, [espacioId, fecha, horaInicio, horaFin, duracion.valida, esFechaHoraPasada]);
+
+  const alternarMaterial = (recursoId: number, marcado: boolean) => {
+    setRecursosSeleccionados((prev) => {
+      const copia = { ...prev };
+      if (marcado) {
+        copia[recursoId] = copia[recursoId] ?? 1;
+      } else {
+        delete copia[recursoId];
+      }
+      return copia;
+    });
+  };
+
+  const cambiarCantidadMaterial = (recursoId: number, cantidad: number) => {
+    setRecursosSeleccionados((prev) => ({
+      ...prev,
+      [recursoId]: Math.max(1, Math.floor(cantidad || 1)),
+    }));
+  };
+
+  const manejarGuardarMaterial = async () => {
+    const nombreLimpio = nuevoMaterialNombre.trim();
+    if (!nombreLimpio) {
+      setErrorNuevoMaterial('Escribe el nombre del material.');
+      return;
+    }
+    setErrorNuevoMaterial(null);
+    try {
+      const creado = await crearRecursoMut.mutateAsync({
+        nombre: nombreLimpio,
+        unidad: nuevoMaterialRequiereCantidad ? 'pieza' : 'sin_cantidad',
+      });
+      setRecursosSeleccionados((prev) => ({ ...prev, [creado.id]: 1 }));
+      setNuevoMaterialNombre('');
+      setNuevoMaterialRequiereCantidad(true);
+      setMostrarAgregarMaterial(false);
+      toast.exito('Material agregado al catálogo');
+    } catch (err) {
+      setErrorNuevoMaterial(mensajeDeError(err));
+    }
+  };
+
+  const manejarConfirmarEliminarMaterial = async () => {
+    if (!materialAEliminar) return;
+    const idEliminar = materialAEliminar.id;
+    try {
+      await eliminarRecursoMut.mutateAsync(idEliminar);
+      setRecursosSeleccionados((prev) => {
+        const copia = { ...prev };
+        delete copia[idEliminar];
+        return copia;
+      });
+      setMaterialAEliminar(null);
+      toast.exito('Material eliminado del catálogo');
+    } catch (err) {
+      toast.error(mensajeDeError(err));
+    }
+  };
+
+  const cantidadMaterialesSeleccionados = Object.keys(recursosSeleccionados).length;
+
+  const resumenMaterialesTexto = useMemo(() => {
+    const partes = recursosCatalogo
+      .filter((r) => recursosSeleccionados[r.id] !== undefined)
+      .map((r) => `${recursosSeleccionados[r.id]} ${r.nombre.toLowerCase()}`);
+    return partes.length > 0 ? partes.join(', ') : 'Ningún material seleccionado';
+  }, [recursosCatalogo, recursosSeleccionados]);
 
   const agregarFilaRecordatorio = () => {
     setFilasRecordatorios((prev) => [
@@ -228,6 +314,11 @@ export function PaginaNuevaReservacion() {
       return;
     }
 
+    const recursosPayload = Object.entries(recursosSeleccionados).map(([idStr, cant]) => ({
+      recursoId: Number(idStr),
+      cantidad: cant,
+    }));
+
     try {
       await crearReservacionMut.mutateAsync({
         tipoEvento: tipoEvento.trim(),
@@ -240,7 +331,7 @@ export function PaginaNuevaReservacion() {
         descripcion: descripcion.trim(),
         observaciones: '',
         asistentesEstimados: null,
-        recursos: [],
+        recursos: recursosPayload,
         recordatorios: recordatoriosPayload,
       });
 
@@ -538,6 +629,187 @@ export function PaginaNuevaReservacion() {
               />
             </div>
           </div>
+
+          {/* Bloque 4: Materiales y equipo */}
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-[#1c355e]" />
+                  <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1c355e]">
+                    MATERIALES Y EQUIPO
+                  </h2>
+                </div>
+
+                <span className="inline-flex items-center rounded-full bg-[#fdbb11]/25 border border-[#fdbb11]/60 px-2.5 py-0.5 text-[11px] font-extrabold text-[#1c355e]">
+                  {cantidadMaterialesSeleccionados}{' '}
+                  {cantidadMaterialesSeleccionados === 1 ? 'seleccionado' : 'seleccionados'}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-slate-500 font-medium">
+                Marca el equipo y mobiliario que se utilizará en el evento
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {recursosCatalogo.map((rec) => {
+                const seleccionado = recursosSeleccionados[rec.id] !== undefined;
+                const cantidad = recursosSeleccionados[rec.id] ?? 1;
+                const esFijo = rec.unidad === 'fijo';
+                const requiereCantidad = rec.unidad !== 'sin_cantidad' && !esFijo;
+
+                return (
+                  <div
+                    key={rec.id}
+                    className={`flex items-center justify-between gap-2 rounded-xl border p-2.5 transition-all ${
+                      seleccionado
+                        ? 'border-[#1c355e]/40 bg-[#1c355e]/[0.03] shadow-xs'
+                        : 'border-slate-200 bg-slate-50/60 hover:bg-slate-50'
+                    }`}
+                  >
+                    <label className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={seleccionado}
+                        onChange={(e) => alternarMaterial(rec.id, e.target.checked)}
+                        className="rounded border-slate-300 text-[#1c355e] focus:ring-[#1c355e]/20 shrink-0"
+                      />
+                      <span className="text-xs font-semibold text-slate-800 truncate">
+                        {rec.nombre}
+                      </span>
+                      {esFijo && (
+                        <span className="inline-flex items-center rounded-full bg-slate-200/80 px-2 py-0.5 text-[10px] font-bold text-slate-600 shrink-0">
+                          Fijo en aula
+                        </span>
+                      )}
+                    </label>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {seleccionado && requiereCantidad && (
+                        <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              cambiarCantidadMaterial(rec.id, Math.max(1, cantidad - 1))
+                            }
+                            aria-label={`Disminuir ${rec.nombre}`}
+                            className="px-2 py-1 text-slate-600 hover:text-[#1c355e] hover:bg-slate-50 rounded-l-lg transition-colors cursor-pointer"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-7 text-center text-xs font-extrabold text-[#1c355e] select-none">
+                            {cantidad}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => cambiarCantidadMaterial(rec.id, cantidad + 1)}
+                            aria-label={`Aumentar ${rec.nombre}`}
+                            className="px-2 py-1 text-slate-600 hover:text-[#1c355e] hover:bg-slate-50 rounded-r-lg transition-colors cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+
+                      {!rec.esPredefinido && (
+                        <button
+                          type="button"
+                          onClick={() => setMaterialAEliminar(rec)}
+                          aria-label={`Eliminar ${rec.nombre} del catálogo`}
+                          title="Eliminar material del catálogo"
+                          className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {!mostrarAgregarMaterial ? (
+              <button
+                type="button"
+                onClick={() => setMostrarAgregarMaterial(true)}
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#1c355e] hover:underline cursor-pointer"
+              >
+                + Agregar otro material
+              </button>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <div>
+                    <label
+                      htmlFor="campo-nuevo-material"
+                      className="block text-[11px] font-bold text-[#1c355e] uppercase tracking-wider mb-1"
+                    >
+                      Nombre del material
+                    </label>
+                    <input
+                      id="campo-nuevo-material"
+                      type="text"
+                      value={nuevoMaterialNombre}
+                      onChange={(e) => setNuevoMaterialNombre(e.target.value)}
+                      placeholder="Ej. Podium institucional"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-[#1c355e] focus:ring-2 focus:ring-[#1c355e]/15"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-start gap-3 pt-1 sm:pt-4">
+                    <span className="text-xs font-semibold text-slate-700">
+                      ¿Requiere cantidad?
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={nuevoMaterialRequiereCantidad}
+                      onClick={() => setNuevoMaterialRequiereCantidad((v) => !v)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                        nuevoMaterialRequiereCantidad ? 'bg-[#1c355e]' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ${
+                          nuevoMaterialRequiereCantidad ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {errorNuevoMaterial && (
+                  <p className="text-xs font-semibold text-red-600">{errorNuevoMaterial}</p>
+                )}
+
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostrarAgregarMaterial(false);
+                      setNuevoMaterialNombre('');
+                      setErrorNuevoMaterial(null);
+                    }}
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={manejarGuardarMaterial}
+                    disabled={crearRecursoMut.isPending}
+                    className="rounded-xl bg-[#1c355e] hover:bg-[#152847] px-3.5 py-1.5 text-xs font-bold text-white disabled:opacity-60 cursor-pointer"
+                  >
+                    {crearRecursoMut.isPending ? 'Guardando...' : 'Guardar material'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-slate-500 pt-1">
+              <span className="font-semibold">Resumen:</span> {resumenMaterialesTexto}
+            </p>
+          </div>
         </div>
 
         {/* Columna derecha: Disponibilidad, Recordatorios y Acciones */}
@@ -750,6 +1022,37 @@ export function PaginaNuevaReservacion() {
           </div>
         </div>
       </form>
+
+      <Modal
+        abierto={!!materialAEliminar}
+        alCerrar={() => setMaterialAEliminar(null)}
+        titulo="Eliminar material del catálogo"
+        subtitulo={materialAEliminar?.nombre}
+        anchoMax="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            ¿Eliminar este material del catálogo? Los eventos anteriores conservarán su registro.
+          </p>
+          <div className="flex items-center justify-end gap-2.5 pt-2">
+            <button
+              type="button"
+              onClick={() => setMaterialAEliminar(null)}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={manejarConfirmarEliminarMaterial}
+              disabled={eliminarRecursoMut.isPending}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-60 cursor-pointer"
+            >
+              {eliminarRecursoMut.isPending ? 'Eliminando...' : 'Eliminar'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

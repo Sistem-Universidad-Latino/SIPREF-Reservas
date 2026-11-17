@@ -94,6 +94,18 @@ export function useCrearRecurso() {
   });
 }
 
+export function useEliminarRecurso() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/api/recursos/${id}`, { method: 'DELETE' }),
+    onSuccess: (_res, id) => {
+      qc.setQueryData<Recurso[]>(claves.recursos, (prev) =>
+        prev ? prev.filter((x) => x.id !== id) : [],
+      );
+    },
+  });
+}
+
 // ─── Calendario y reservaciones ────────────────────────────────
 export const useCalendario = (desde: string, hasta: string, espacioId?: string) =>
   useQuery({
