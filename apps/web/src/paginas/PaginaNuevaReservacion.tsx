@@ -8,6 +8,7 @@ import {
   CalendarCheck,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Loader2,
   Mail,
@@ -106,6 +107,7 @@ export function PaginaNuevaReservacion() {
   }, [espacios, espacioId]);
 
   // Materiales y equipo seleccionados: mapa recursoId -> cantidad
+  const [materialesDesplegados, setMaterialesDesplegados] = useState(false);
   const [recursosSeleccionados, setRecursosSeleccionados] = useState<Record<number, number>>({});
   const [mostrarAgregarMaterial, setMostrarAgregarMaterial] = useState(false);
   const [nuevoMaterialNombre, setNuevoMaterialNombre] = useState('');
@@ -630,183 +632,199 @@ export function PaginaNuevaReservacion() {
             </div>
           </div>
 
-          {/* Bloque 4: Materiales y equipo */}
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          {/* Bloque 4: Materiales y equipo (acordeón desplegable) */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
+            <button
+              type="button"
+              onClick={() => setMaterialesDesplegados((v) => !v)}
+              aria-expanded={materialesDesplegados}
+              className="w-full flex items-start justify-between gap-3 text-left cursor-pointer"
+            >
+              <div>
                 <div className="flex items-center gap-2">
-                  <Package className="w-4 h-4 text-[#1c355e]" />
-                  <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1c355e]">
+                  <Package className="w-4 h-4 text-[#1c355e] shrink-0" />
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#1c355e]">
                     MATERIALES Y EQUIPO
                   </h2>
                 </div>
+                <p className="mt-1 text-xs text-slate-500 font-medium">
+                  Marca el equipo y mobiliario que se utilizará en el evento
+                </p>
+              </div>
 
+              <div className="flex items-center gap-2 shrink-0">
                 <span className="inline-flex items-center rounded-full bg-[#fdbb11]/25 border border-[#fdbb11]/60 px-2.5 py-0.5 text-[11px] font-extrabold text-[#1c355e]">
                   {cantidadMaterialesSeleccionados}{' '}
                   {cantidadMaterialesSeleccionados === 1 ? 'seleccionado' : 'seleccionados'}
                 </span>
+                <ChevronDown
+                  className={`w-4 h-4 text-[#1c355e] transition-transform duration-200 ${
+                    materialesDesplegados ? 'rotate-180' : ''
+                  }`}
+                />
               </div>
-              <p className="mt-2 text-xs text-slate-500 font-medium">
-                Marca el equipo y mobiliario que se utilizará en el evento
-              </p>
-            </div>
+            </button>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {recursosCatalogo.map((rec) => {
-                const seleccionado = recursosSeleccionados[rec.id] !== undefined;
-                const cantidad = recursosSeleccionados[rec.id] ?? 1;
-                const esFijo = rec.unidad === 'fijo';
-                const requiereCantidad = rec.unidad !== 'sin_cantidad' && !esFijo;
+            {materialesDesplegados && (
+              <div className="space-y-3 pt-2 border-t border-slate-200/70">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {recursosCatalogo.map((rec) => {
+                    const seleccionado = recursosSeleccionados[rec.id] !== undefined;
+                    const cantidad = recursosSeleccionados[rec.id] ?? 1;
+                    const esFijo = rec.unidad === 'fijo';
+                    const requiereCantidad = rec.unidad !== 'sin_cantidad' && !esFijo;
 
-                return (
-                  <div
-                    key={rec.id}
-                    className={`flex items-center justify-between gap-2 rounded-xl border p-2.5 transition-all ${
-                      seleccionado
-                        ? 'border-[#1c355e]/40 bg-[#1c355e]/[0.03] shadow-xs'
-                        : 'border-slate-200 bg-slate-50/60 hover:bg-slate-50'
-                    }`}
-                  >
-                    <label className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={seleccionado}
-                        onChange={(e) => alternarMaterial(rec.id, e.target.checked)}
-                        className="rounded border-slate-300 text-[#1c355e] focus:ring-[#1c355e]/20 shrink-0"
-                      />
-                      <span className="text-xs font-semibold text-slate-800 truncate">
-                        {rec.nombre}
-                      </span>
-                      {esFijo && (
-                        <span className="inline-flex items-center rounded-full bg-slate-200/80 px-2 py-0.5 text-[10px] font-bold text-slate-600 shrink-0">
-                          Fijo en aula
-                        </span>
-                      )}
-                    </label>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {seleccionado && requiereCantidad && (
-                        <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-2xs">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              cambiarCantidadMaterial(rec.id, Math.max(1, cantidad - 1))
-                            }
-                            aria-label={`Disminuir ${rec.nombre}`}
-                            className="px-2 py-1 text-slate-600 hover:text-[#1c355e] hover:bg-slate-50 rounded-l-lg transition-colors cursor-pointer"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="w-7 text-center text-xs font-extrabold text-[#1c355e] select-none">
-                            {cantidad}
+                    return (
+                      <div
+                        key={rec.id}
+                        className={`flex items-center justify-between gap-2 rounded-xl border p-2.5 transition-all ${
+                          seleccionado
+                            ? 'border-[#1c355e]/40 bg-white shadow-xs'
+                            : 'border-slate-200 bg-white/80 hover:bg-white'
+                        }`}
+                      >
+                        <label className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={seleccionado}
+                            onChange={(e) => alternarMaterial(rec.id, e.target.checked)}
+                            className="rounded border-slate-300 text-[#1c355e] focus:ring-[#1c355e]/20 shrink-0"
+                          />
+                          <span className="text-xs font-semibold text-slate-800 truncate">
+                            {rec.nombre}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => cambiarCantidadMaterial(rec.id, cantidad + 1)}
-                            aria-label={`Aumentar ${rec.nombre}`}
-                            className="px-2 py-1 text-slate-600 hover:text-[#1c355e] hover:bg-slate-50 rounded-r-lg transition-colors cursor-pointer"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
+                          {esFijo && (
+                            <span className="inline-flex items-center rounded-full bg-slate-200/80 px-2 py-0.5 text-[10px] font-bold text-slate-600 shrink-0">
+                              Fijo en aula
+                            </span>
+                          )}
+                        </label>
 
-                      {!rec.esPredefinido && (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {seleccionado && requiereCantidad && (
+                            <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 shadow-2xs">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  cambiarCantidadMaterial(rec.id, Math.max(1, cantidad - 1))
+                                }
+                                aria-label={`Disminuir ${rec.nombre}`}
+                                className="px-2 py-1 text-slate-600 hover:text-[#1c355e] hover:bg-white rounded-l-lg transition-colors cursor-pointer"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="w-7 text-center text-xs font-extrabold text-[#1c355e] select-none">
+                                {cantidad}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => cambiarCantidadMaterial(rec.id, cantidad + 1)}
+                                aria-label={`Aumentar ${rec.nombre}`}
+                                className="px-2 py-1 text-slate-600 hover:text-[#1c355e] hover:bg-white rounded-r-lg transition-colors cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+
+                          {!rec.esPredefinido && (
+                            <button
+                              type="button"
+                              onClick={() => setMaterialAEliminar(rec)}
+                              aria-label={`Eliminar ${rec.nombre} del catálogo`}
+                              title="Eliminar material del catálogo"
+                              className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {!mostrarAgregarMaterial ? (
+                  <button
+                    type="button"
+                    onClick={() => setMostrarAgregarMaterial(true)}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#1c355e] hover:underline cursor-pointer"
+                  >
+                    + Agregar otro material
+                  </button>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                      <div>
+                        <label
+                          htmlFor="campo-nuevo-material"
+                          className="block text-[11px] font-bold text-[#1c355e] uppercase tracking-wider mb-1"
+                        >
+                          Nombre del material
+                        </label>
+                        <input
+                          id="campo-nuevo-material"
+                          type="text"
+                          value={nuevoMaterialNombre}
+                          onChange={(e) => setNuevoMaterialNombre(e.target.value)}
+                          placeholder="Ej. Podium institucional"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-[#1c355e] focus:ring-2 focus:ring-[#1c355e]/15"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-start gap-3 pt-1 sm:pt-4">
+                        <span className="text-xs font-semibold text-slate-700">
+                          ¿Requiere cantidad?
+                        </span>
                         <button
                           type="button"
-                          onClick={() => setMaterialAEliminar(rec)}
-                          aria-label={`Eliminar ${rec.nombre} del catálogo`}
-                          title="Eliminar material del catálogo"
-                          className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                          role="switch"
+                          aria-checked={nuevoMaterialRequiereCantidad}
+                          onClick={() => setNuevoMaterialRequiereCantidad((v) => !v)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                            nuevoMaterialRequiereCantidad ? 'bg-[#1c355e]' : 'bg-slate-300'
+                          }`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ${
+                              nuevoMaterialRequiereCantidad ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
                         </button>
-                      )}
+                      </div>
+                    </div>
+
+                    {errorNuevoMaterial && (
+                      <p className="text-xs font-semibold text-red-600">{errorNuevoMaterial}</p>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMostrarAgregarMaterial(false);
+                          setNuevoMaterialNombre('');
+                          setErrorNuevoMaterial(null);
+                        }}
+                        className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={manejarGuardarMaterial}
+                        disabled={crearRecursoMut.isPending}
+                        className="rounded-xl bg-[#1c355e] hover:bg-[#152847] px-3.5 py-1.5 text-xs font-bold text-white disabled:opacity-60 cursor-pointer"
+                      >
+                        {crearRecursoMut.isPending ? 'Guardando...' : 'Guardar material'}
+                      </button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-
-            {!mostrarAgregarMaterial ? (
-              <button
-                type="button"
-                onClick={() => setMostrarAgregarMaterial(true)}
-                className="inline-flex items-center gap-1 text-xs font-bold text-[#1c355e] hover:underline cursor-pointer"
-              >
-                + Agregar otro material
-              </button>
-            ) : (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                  <div>
-                    <label
-                      htmlFor="campo-nuevo-material"
-                      className="block text-[11px] font-bold text-[#1c355e] uppercase tracking-wider mb-1"
-                    >
-                      Nombre del material
-                    </label>
-                    <input
-                      id="campo-nuevo-material"
-                      type="text"
-                      value={nuevoMaterialNombre}
-                      onChange={(e) => setNuevoMaterialNombre(e.target.value)}
-                      placeholder="Ej. Podium institucional"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-[#1c355e] focus:ring-2 focus:ring-[#1c355e]/15"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between sm:justify-start gap-3 pt-1 sm:pt-4">
-                    <span className="text-xs font-semibold text-slate-700">
-                      ¿Requiere cantidad?
-                    </span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={nuevoMaterialRequiereCantidad}
-                      onClick={() => setNuevoMaterialRequiereCantidad((v) => !v)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                        nuevoMaterialRequiereCantidad ? 'bg-[#1c355e]' : 'bg-slate-300'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ${
-                          nuevoMaterialRequiereCantidad ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                {errorNuevoMaterial && (
-                  <p className="text-xs font-semibold text-red-600">{errorNuevoMaterial}</p>
                 )}
-
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMostrarAgregarMaterial(false);
-                      setNuevoMaterialNombre('');
-                      setErrorNuevoMaterial(null);
-                    }}
-                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={manejarGuardarMaterial}
-                    disabled={crearRecursoMut.isPending}
-                    className="rounded-xl bg-[#1c355e] hover:bg-[#152847] px-3.5 py-1.5 text-xs font-bold text-white disabled:opacity-60 cursor-pointer"
-                  >
-                    {crearRecursoMut.isPending ? 'Guardando...' : 'Guardar material'}
-                  </button>
-                </div>
               </div>
             )}
 
-            <p className="text-xs text-slate-500 pt-1">
+            <p className="text-xs text-slate-500">
               <span className="font-semibold">Resumen:</span> {resumenMaterialesTexto}
             </p>
           </div>
