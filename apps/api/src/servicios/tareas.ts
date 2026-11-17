@@ -1,8 +1,7 @@
 import type { ClienteBd } from '../bd/pool.js';
-import { enTransaccion, obtenerPool } from '../bd/pool.js';
-import { registrarAuditoria } from './auditoria.js';
+import { obtenerPool } from '../bd/pool.js';
 import { enviarCorreoRecordatorio } from './correo.js';
-import { encolarNotificacionSalida, procesarOutbox } from './outbox.js';
+import { procesarOutbox } from './outbox.js';
 
 export interface ResultadoTareas {
   ejecutado: boolean;
@@ -17,68 +16,8 @@ export async function ejecutarTareasProgramadas(
   pool: ClienteBd = obtenerPool(),
 ): Promise<ResultadoTareas> {
   try {
-    // 1) Expirar solicitudes PENDIENTE con expira_en < now()
-    const solicitudesExpiradas = await enTransaccion(async (tx) => {
-      const { rows: vencidas } = await tx.query(
-        `
-        SELECT id, google_sub, correo, nombre, foto_url, intentado_en
-        FROM reservas_solicitudes_acceso
-        WHERE estado = 'PENDIENTE'
-          AND expira_en < NOW()
-        FOR UPDATE
-        `,
-      );
-
-      for (const sol of vencidas) {
-        await tx.query(
-          `
-          UPDATE reservas_solicitudes_acceso
-          SET estado = 'EXPIRADA'
-          WHERE id = $1
-          `,
-          [sol.id],
-        );
-        await tx.query(
-          `
-          UPDATE reservas_usuarios
-          SET estado = 'EXPIRADA', actualizado_en = NOW()
-          WHERE google_sub = $1 AND estado = 'PENDIENTE'
-          `,
-          [sol.google_sub],
-        );
-
-        const claveIdem = `solicitud_acceso.expirada:${sol.id}`;
-        await encolarNotificacionSalida(tx, {
-          tipo: 'solicitud_acceso.expirada',
-          claveIdempotencia: claveIdem,
-          payload: {
-            evento: 'solicitud_acceso.expirada',
-            idEvento: claveIdem,
-            ocurridoEn: new Date().toISOString(),
-            datos: {
-              solicitudId: String(sol.id),
-              nombre: String(sol.nombre),
-              correo: String(sol.correo),
-              fotoUrl: sol.foto_url ? String(sol.foto_url) : null,
-              intentadoEn: new Date(sol.intentado_en).toISOString(),
-            },
-          },
-        });
-
-        await registrarAuditoria(tx, {
-          actorTipo: 'SISTEMA',
-          actorId: 'cron',
-          actorNombre: 'Tareas programadas',
-          accion: 'solicitud.expirar',
-          entidad: 'reservas_solicitudes_acceso',
-          entidadId: String(sol.id),
-          datosAntes: { estado: 'PENDIENTE' },
-          datosDespues: { estado: 'EXPIRADA' },
-        });
-      }
-
-      return vencidas.length;
-    }, pool);
+    // 1) Las solicitudes de acceso no expiran automáticamente; solo cambian si el usuario elimina su cuenta o SIPREF las resuelve.
+    const solicitudesExpiradas = 0;
 
       // 2) Enviar recordatorios con enviar_en <= now() que no se han enviado
       let recordatoriosEnviados = 0;

@@ -229,14 +229,6 @@ export function PaginaEstadoAcceso() {
                   {formatearFechaHora(solicitud.intentadoEn)}
                 </span>
               </div>
-              {(estado === 'PENDIENTE' || estado === 'EXPIRADA') && (
-                <div>
-                  <span className="text-texto-suave block">Fecha de expiración</span>
-                  <span className="font-semibold text-texto">
-                    {formatearFechaHora(solicitud.expiraEn)}
-                  </span>
-                </div>
-              )}
               {(estado === 'RECHAZADA' || estado === 'REVOCADA') && solicitud.resueltoEn && (
                 <div>
                   <span className="text-texto-suave block">Fecha de resolución</span>
