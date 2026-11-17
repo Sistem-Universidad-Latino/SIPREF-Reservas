@@ -50,7 +50,11 @@ const esquemaDisponibilidad = z.object({
 });
 
 const esquemaCrearReservacion = z.object({
-  tipoEvento: z.enum(['CONFERENCIA', 'TALLER', 'JUNTA', 'EXAMEN', 'OTRO']),
+  tipoEvento: z
+    .string()
+    .trim()
+    .min(1, 'El tipo de evento es obligatorio')
+    .max(100, 'El tipo de evento no puede exceder 100 caracteres'),
   espacioId: z.string().trim().min(1, 'El espacio es obligatorio'),
   nombreEvento: z
     .string()

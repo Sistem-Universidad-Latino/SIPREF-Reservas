@@ -27,6 +27,7 @@ export interface EventoOcupacionPrincipal {
   espacioId: string;
   espacioNombre: string;
   nombreEvento: string;
+  tipoEvento?: string;
   responsable: string;
   inicio: Date;
   fin: Date;
@@ -118,6 +119,7 @@ export async function listarOcupacionPrincipal(
       COALESCE(CAST(a.id AS CHAR), ev.aula_nombre) AS espacio_id,
       ev.aula_nombre AS espacio_nombre,
       ev.nombre_evento AS titulo,
+      ev.tipo_evento AS tipo_evento,
       ev.responsable AS responsable,
       CONCAT(DATE_FORMAT(ev.fecha, '%Y-%m-%d'), 'T', TIME_FORMAT(ev.hora_inicio, '%H:%i:%s'), '-06:00') AS inicio_iso,
       CONCAT(DATE_FORMAT(ev.fecha, '%Y-%m-%d'), 'T', TIME_FORMAT(ev.hora_fin, '%H:%i:%s'), '-06:00') AS fin_iso
@@ -137,6 +139,7 @@ export async function listarOcupacionPrincipal(
     espacioId: String(r.espacio_id),
     espacioNombre: String(r.espacio_nombre),
     nombreEvento: String(r.titulo),
+    tipoEvento: r.tipo_evento ? String(r.tipo_evento) : undefined,
     responsable: String(r.responsable),
     inicio: new Date(String(r.inicio_iso)),
     fin: new Date(String(r.fin_iso)),

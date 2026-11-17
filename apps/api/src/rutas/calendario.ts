@@ -111,12 +111,7 @@ export async function rutasCalendario(app: FastifyInstance): Promise<void> {
         return {
           id: String(r.id),
           origen: 'RESERVAS' as const,
-          tipoEvento: String(r.tipo_evento) as
-            | 'CONFERENCIA'
-            | 'TALLER'
-            | 'JUNTA'
-            | 'EXAMEN'
-            | 'OTRO',
+          tipoEvento: String(r.tipo_evento),
           nombreEvento: String(r.nombre_evento),
           espacioId: String(r.espacio_id),
           espacioNombre: String(r.espacio_nombre),
@@ -132,7 +127,7 @@ export async function rutasCalendario(app: FastifyInstance): Promise<void> {
       const eventosSipref = eventosPrincipal.map((ev) => ({
         id: ev.id,
         origen: 'SIPREF' as const,
-        tipoEvento: 'OTRO' as const,
+        tipoEvento: ev.tipoEvento || 'OTRO',
         nombreEvento: ev.nombreEvento,
         espacioId: ev.espacioId,
         espacioNombre: ev.espacioNombre,

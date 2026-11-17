@@ -25,7 +25,7 @@ export interface RecordatorioDto {
 export interface ReservacionResumenDto {
   id: string;
   codigo: string;
-  tipoEvento: 'CONFERENCIA' | 'TALLER' | 'JUNTA' | 'EXAMEN' | 'OTRO';
+  tipoEvento: string;
   nombreEvento: string;
   espacioId: string;
   espacioNombre: string;

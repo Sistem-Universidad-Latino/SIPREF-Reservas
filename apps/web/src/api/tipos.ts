@@ -2,7 +2,7 @@
 
 export type EstadoAcceso = 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' | 'REVOCADA' | 'EXPIRADA';
 export type Rol = 'DOCENTE' | 'PERSONAL' | 'ADMIN_ESPACIOS';
-export type TipoEvento = 'CONFERENCIA' | 'TALLER' | 'JUNTA' | 'EXAMEN' | 'OTRO';
+export type TipoEvento = string;
 export type EstadoReservacion = 'PENDIENTE' | 'REALIZADA' | 'CANCELADA';
 export type CanalRecordatorio = 'SIPREF' | 'CORREO';
 export type UnidadAnticipacion = 'MINUTOS' | 'HORAS' | 'DIAS';

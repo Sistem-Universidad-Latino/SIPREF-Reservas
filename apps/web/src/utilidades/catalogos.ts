@@ -66,8 +66,16 @@ export const LISTA_TIPOS_EVENTO: InfoTipoEvento[] = [
   CATALOGO_TIPOS_EVENTO.OTRO,
 ];
 
-export function obtenerInfoTipoEvento(tipo: TipoEvento): InfoTipoEvento {
-  return CATALOGO_TIPOS_EVENTO[tipo] ?? CATALOGO_TIPOS_EVENTO.OTRO;
+export function obtenerInfoTipoEvento(tipo: string): InfoTipoEvento {
+  const clave = String(tipo || '').trim().toUpperCase();
+  if (clave in CATALOGO_TIPOS_EVENTO) {
+    return CATALOGO_TIPOS_EVENTO[clave];
+  }
+  return {
+    ...CATALOGO_TIPOS_EVENTO.OTRO,
+    tipo,
+    etiqueta: tipo || 'Otro',
+  };
 }
 
 export interface InfoEstadoReservacion {

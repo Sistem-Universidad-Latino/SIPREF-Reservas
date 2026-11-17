@@ -20,13 +20,9 @@ import { esApiError, mensajeDeError } from '../api/cliente';
 import type {
   Conflicto,
   DisponibilidadRespuesta,
-  TipoEvento,
   UnidadAnticipacion,
 } from '../api/tipos';
-import {
-  LISTA_TIPOS_EVENTO,
-  OPCIONES_UNIDAD_ANTICIPACION,
-} from '../utilidades/catalogos';
+import { OPCIONES_UNIDAD_ANTICIPACION } from '../utilidades/catalogos';
 import {
   calcularDuracion,
   construirIsoMexico,
@@ -65,7 +61,7 @@ export function PaginaNuevaReservacion() {
   }, [searchParams]);
 
   // Campos principales del formulario
-  const [tipoEvento, setTipoEvento] = useState<TipoEvento>('CONFERENCIA');
+  const [tipoEvento, setTipoEvento] = useState<string>('');
   const [espacioId, setEspacioId] = useState<string>('');
   const [nombreEvento, setNombreEvento] = useState<string>('');
   const [fecha, setFecha] = useState<string>(fechaPorDefecto);
@@ -178,6 +174,9 @@ export function PaginaNuevaReservacion() {
     setConflictosEnvio([]);
 
     const nuevosErrores: Record<string, string> = {};
+    if (!tipoEvento.trim()) {
+      nuevosErrores.tipoEvento = 'Ingresa el tipo de evento.';
+    }
     if (!nombreEvento.trim()) {
       nuevosErrores.nombreEvento = 'Ingresa el nombre del evento.';
     }
@@ -343,18 +342,20 @@ export function PaginaNuevaReservacion() {
             <label htmlFor="campo-tipo-evento" className={LABEL_CLASS}>
               TIPO DE EVENTO *
             </label>
-            <select
+            <input
               id="campo-tipo-evento"
+              type="text"
               value={tipoEvento}
-              onChange={(e) => setTipoEvento(e.target.value as TipoEvento)}
+              onChange={(e) => setTipoEvento(e.target.value)}
+              placeholder="Ej. Conferencia, Junta, Examen, Taller..."
               className={INPUT_CLASS}
-            >
-              {LISTA_TIPOS_EVENTO.map((t) => (
-                <option key={t.tipo} value={t.tipo}>
-                  {t.etiqueta}
-                </option>
-              ))}
-            </select>
+              required
+            />
+            {erroresCampo.tipoEvento && (
+              <p className="mt-1 text-xs font-medium text-red-600">
+                {erroresCampo.tipoEvento}
+              </p>
+            )}
           </div>
 
           <div>
