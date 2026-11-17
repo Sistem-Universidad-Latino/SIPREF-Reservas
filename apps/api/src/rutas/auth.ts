@@ -19,6 +19,7 @@ import {
 } from '../seguridad/cookies.js';
 import {
   type EstadoAcceso,
+  normalizarEstadoAcceso,
   requerirSesionAprobada,
   type RolUsuario,
 } from '../seguridad/guardias.js';
@@ -105,10 +106,7 @@ async function procesarIngresoIdentidad(
       );
     } else {
       const previo = existentes[0];
-      const estadoNormalizado =
-        String(previo.estado).toUpperCase() === 'ACTIVO'
-          ? 'APROBADA'
-          : String(previo.estado);
+      const estadoNormalizado = normalizarEstadoAcceso(String(previo.estado));
       estadoActual = (entrada.forzarEstado ?? estadoNormalizado) as EstadoAcceso;
       rolActual = (entrada.forzarRol ?? previo.rol ?? null) as RolUsuario | null;
       if (estadoActual === 'APROBADA' && !rolActual) {
@@ -553,11 +551,6 @@ export async function rutasAuth(app: FastifyInstance): Promise<void> {
     }
 
     const usuario = usuRows[0];
-    const estadoCuenta = (
-      String(usuario.estado).toUpperCase() === 'ACTIVO'
-        ? 'APROBADA'
-        : String(usuario.estado)
-    ) as EstadoAcceso;
 
     const { rows: solRows } = await pool.query(
       solicitudIdPreferida
@@ -578,6 +571,12 @@ export async function rutasAuth(app: FastifyInstance): Promise<void> {
       solicitudIdPreferida ? [sub, solicitudIdPreferida] : [sub],
     );
 
+    const sol = solRows[0];
+    const estadoCuenta = normalizarEstadoAcceso(
+      String(usuario.estado),
+      sol?.estado ? String(sol.estado) : undefined,
+    );
+
     // Si la cuenta ya fue aprobada y el usuario tenía solo sr_estado, emitimos también sr_sesion
     if (estadoCuenta === 'APROBADA' && !tieneSesionActiva) {
       const { tokenOpaco, tokenHash } = generarTokenSesion();
@@ -596,8 +595,6 @@ export async function rutasAuth(app: FastifyInstance): Promise<void> {
       );
       escribirCookieSesion(reply, tokenOpaco);
     }
-
-    const sol = solRows[0];
     const ahoraIso = new Date().toISOString();
 
     return {

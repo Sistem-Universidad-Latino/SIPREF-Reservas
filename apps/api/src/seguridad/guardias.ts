@@ -14,6 +14,21 @@ export type EstadoAcceso =
   | 'REVOCADA'
   | 'EXPIRADA';
 
+export function normalizarEstadoAcceso(
+  estadoBd: string,
+  estadoSolicitud?: string,
+): EstadoAcceso {
+  const limpio = estadoBd.trim().toUpperCase();
+  if (limpio === 'ACTIVO') return 'APROBADA';
+  if (limpio === 'PENDIENTE_APROBACION') return 'PENDIENTE';
+  if (limpio === 'SUSPENDIDO') {
+    return estadoSolicitud?.trim().toUpperCase() === 'RECHAZADA'
+      ? 'RECHAZADA'
+      : 'REVOCADA';
+  }
+  return limpio as EstadoAcceso;
+}
+
 export interface UsuarioSesion {
   sub: string;
   nombre: string;
@@ -90,10 +105,7 @@ export async function requerirSesionAprobada(
     );
   }
 
-  const estadoNormalizado =
-    String(fila.estado).toUpperCase() === 'ACTIVO'
-      ? 'APROBADA'
-      : String(fila.estado);
+  const estadoNormalizado = normalizarEstadoAcceso(String(fila.estado));
 
   if (estadoNormalizado !== 'APROBADA' || !fila.rol) {
     await pool.query(
