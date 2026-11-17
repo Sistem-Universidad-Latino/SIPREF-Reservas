@@ -78,6 +78,26 @@ export interface Recurso {
   esPredefinido: boolean;
 }
 
+export interface RecursoPlantilla {
+  recursoId: number;
+  nombre: string;
+  unidad: string;
+  cantidad: number;
+}
+
+export interface PlantillaEvento {
+  id: number;
+  nombre: string;
+  tipoEvento: string | null;
+  recursos: RecursoPlantilla[];
+}
+
+export interface PlantillaEventoEntrada {
+  nombre: string;
+  tipoEvento?: string | null;
+  recursos: Array<{ recursoId: number; cantidad: number }>;
+}
+
 export interface EventoCalendario {
   id: string;
   origen: OrigenEvento;

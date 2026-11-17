@@ -12,6 +12,8 @@ import type {
   EventoCalendario,
   FiltrosReservaciones,
   Pagina,
+  PlantillaEvento,
+  PlantillaEventoEntrada,
   ReagendarEntrada,
   Recurso,
   ReservacionDetalle,
@@ -26,6 +28,7 @@ export const claves = {
   configuracion: ['configuracion'] as const,
   espacios: ['espacios'] as const,
   recursos: ['recursos'] as const,
+  plantillasEvento: ['plantillas-evento'] as const,
   calendario: (desde: string, hasta: string, espacioId?: string) =>
     ['calendario', desde, hasta, espacioId ?? ''] as const,
   reservaciones: (f: FiltrosReservaciones) => ['reservaciones', f] as const,
@@ -100,6 +103,52 @@ export function useEliminarRecurso() {
     mutationFn: (id: number) => api<void>(`/api/recursos/${id}`, { method: 'DELETE' }),
     onSuccess: (_res, id) => {
       qc.setQueryData<Recurso[]>(claves.recursos, (prev) =>
+        prev ? prev.filter((x) => x.id !== id) : [],
+      );
+    },
+  });
+}
+
+export const usePlantillasEvento = () =>
+  useQuery({
+    queryKey: claves.plantillasEvento,
+    queryFn: () => api<PlantillaEvento[]>('/api/plantillas-evento'),
+    staleTime: 5 * 60_000,
+  });
+
+export function useCrearPlantillaEvento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (d: PlantillaEventoEntrada) =>
+      api<PlantillaEvento>('/api/plantillas-evento', { method: 'POST', body: d }),
+    onSuccess: (p) => {
+      qc.setQueryData<PlantillaEvento[]>(claves.plantillasEvento, (prev) =>
+        prev ? [...prev, p] : [p],
+      );
+    },
+  });
+}
+
+export function useActualizarPlantillaEvento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, datos }: { id: number; datos: PlantillaEventoEntrada }) =>
+      api<PlantillaEvento>(`/api/plantillas-evento/${id}`, { method: 'PUT', body: datos }),
+    onSuccess: (p) => {
+      qc.setQueryData<PlantillaEvento[]>(claves.plantillasEvento, (prev) =>
+        prev ? prev.map((x) => (x.id === p.id ? p : x)) : [p],
+      );
+    },
+  });
+}
+
+export function useEliminarPlantillaEvento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api<void>(`/api/plantillas-evento/${id}`, { method: 'DELETE' }),
+    onSuccess: (_res, id) => {
+      qc.setQueryData<PlantillaEvento[]>(claves.plantillasEvento, (prev) =>
         prev ? prev.filter((x) => x.id !== id) : [],
       );
     },

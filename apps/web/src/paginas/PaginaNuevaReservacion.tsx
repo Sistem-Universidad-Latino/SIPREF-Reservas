@@ -14,7 +14,9 @@ import {
   Mail,
   Minus,
   Package,
+  Pencil,
   Plus,
+  Sparkles,
   Trash2,
   User,
 } from 'lucide-react';
@@ -25,6 +27,7 @@ import {
   useCrearReservacion,
   useEliminarRecurso,
   useEspacios,
+  usePlantillasEvento,
   useRecursos,
   useYo,
 } from '../api/consultas';
@@ -32,10 +35,12 @@ import { esApiError, mensajeDeError } from '../api/cliente';
 import type {
   Conflicto,
   DisponibilidadRespuesta,
+  PlantillaEvento,
   Recurso,
   UnidadAnticipacion,
 } from '../api/tipos';
 import { Modal } from '../componentes/Modal';
+import { ModalPlantillaEvento } from '../componentes/ModalPlantillaEvento';
 import { OPCIONES_UNIDAD_ANTICIPACION } from '../utilidades/catalogos';
 import {
   calcularDuracion,
@@ -66,6 +71,7 @@ export function PaginaNuevaReservacion() {
   const { data: config } = useConfiguracion();
   const { data: espacios = [] } = useEspacios();
   const { data: recursosCatalogo = [] } = useRecursos();
+  const { data: plantillasEvento = [] } = usePlantillasEvento();
 
   const crearRecursoMut = useCrearRecurso();
   const eliminarRecursoMut = useEliminarRecurso();
@@ -105,6 +111,11 @@ export function PaginaNuevaReservacion() {
       setEspacioId(espacios[0].id);
     }
   }, [espacios, espacioId]);
+
+  // Plantillas de evento con materiales predeterminados
+  const [plantillaSeleccionadaId, setPlantillaSeleccionadaId] = useState<string>('');
+  const [modalPlantillaAbierto, setModalPlantillaAbierto] = useState(false);
+  const [plantillaAEditar, setPlantillaAEditar] = useState<PlantillaEvento | null>(null);
 
   // Materiales y equipo seleccionados: mapa recursoId -> cantidad
   const [materialesDesplegados, setMaterialesDesplegados] = useState(false);
@@ -179,6 +190,31 @@ export function PaginaNuevaReservacion() {
       controlador.abort();
     };
   }, [espacioId, fecha, horaInicio, horaFin, duracion.valida, esFechaHoraPasada]);
+
+  const plantillaActual = useMemo(
+    () =>
+      plantillasEvento.find((p) => String(p.id) === plantillaSeleccionadaId) ?? null,
+    [plantillasEvento, plantillaSeleccionadaId],
+  );
+
+  const aplicarPlantilla = (plantilla: PlantillaEvento) => {
+    setPlantillaSeleccionadaId(String(plantilla.id));
+    setNombreEvento(plantilla.nombre);
+    if (plantilla.tipoEvento) {
+      setTipoEvento(plantilla.tipoEvento);
+    } else if (!tipoEvento.trim()) {
+      setTipoEvento(plantilla.nombre);
+    }
+    const mapa: Record<number, number> = {};
+    for (const r of plantilla.recursos) {
+      mapa[r.recursoId] = r.cantidad;
+    }
+    setRecursosSeleccionados(mapa);
+    setErroresCampo((p) => ({ ...p, nombreEvento: '', tipoEvento: '' }));
+    toast.exito(
+      `Plantilla "${plantilla.nombre}" aplicada (${plantilla.recursos.length} materiales)`,
+    );
+  };
 
   const alternarMaterial = (recursoId: number, marcado: boolean) => {
     setRecursosSeleccionados((prev) => {
@@ -419,6 +455,58 @@ export function PaginaNuevaReservacion() {
               <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1c355e]">
                 Información del evento y espacio
               </h2>
+            </div>
+
+            {/* Selector rápido de evento predefinido (plantilla con materiales) */}
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3 flex flex-col sm:flex-row sm:items-center gap-2.5">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Sparkles className="w-4 h-4 text-[#d99a00] shrink-0" />
+                <select
+                  aria-label="Evento predefinido con materiales"
+                  value={plantillaSeleccionadaId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPlantillaSeleccionadaId(val);
+                    const encontrada = plantillasEvento.find((p) => String(p.id) === val);
+                    if (encontrada) aplicarPlantilla(encontrada);
+                  }}
+                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-[#1c355e] focus:ring-2 focus:ring-[#1c355e]/15 cursor-pointer"
+                >
+                  <option value="">Evento personalizado (o elige una plantilla...)</option>
+                  {plantillasEvento.map((p) => (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.nombre} ({p.recursos.length} materiales)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {plantillaActual && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlantillaAEditar(plantillaActual);
+                      setModalPlantillaAbierto(true);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-bold text-[#1c355e] cursor-pointer"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Editar</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlantillaAEditar(null);
+                    setModalPlantillaAbierto(true);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-xl bg-[#1c355e]/10 hover:bg-[#1c355e]/15 px-3 py-1.5 text-xs font-bold text-[#1c355e] cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Nueva plantilla</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1071,6 +1159,22 @@ export function PaginaNuevaReservacion() {
           </div>
         </div>
       </Modal>
+
+      <ModalPlantillaEvento
+        abierto={modalPlantillaAbierto}
+        alCerrar={() => setModalPlantillaAbierto(false)}
+        plantillaEditar={plantillaAEditar}
+        recursosCatalogo={recursosCatalogo}
+        recursosIniciales={recursosSeleccionados}
+        tipoEventoInicial={tipoEvento}
+        nombreEventoInicial={nombreEvento}
+        alAplicar={(plantilla) => aplicarPlantilla(plantilla)}
+        alEliminar={(idEliminada) => {
+          if (plantillaSeleccionadaId === String(idEliminada)) {
+            setPlantillaSeleccionadaId('');
+          }
+        }}
+      />
     </div>
   );
 }
