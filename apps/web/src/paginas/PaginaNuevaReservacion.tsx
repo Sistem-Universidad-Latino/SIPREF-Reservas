@@ -2,12 +2,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
+  ArrowLeft,
   Bell,
+  Building2,
   CalendarCheck,
+  CalendarClock,
   CheckCircle2,
+  Clock,
   Loader2,
+  Mail,
   Trash2,
-  X,
+  User,
 } from 'lucide-react';
 import {
   consultarDisponibilidad,
@@ -39,9 +44,9 @@ import {
 import { useToast } from '../componentes/Toast';
 
 const LABEL_CLASS =
-  'block text-xs font-bold text-[#1c355e] uppercase tracking-wider mb-2';
+  'block text-[11px] font-bold text-[#1c355e] uppercase tracking-wider mb-1.5';
 const INPUT_CLASS =
-  'w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-[#1c355e]/20 outline-none transition-colors';
+  'w-full px-3.5 py-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 placeholder:text-slate-400 placeholder:font-normal focus:bg-white focus:border-[#1c355e] focus:ring-4 focus:ring-[#1c355e]/10 outline-none transition-all';
 
 export function PaginaNuevaReservacion() {
   const [searchParams] = useSearchParams();
@@ -54,11 +59,15 @@ export function PaginaNuevaReservacion() {
 
   const crearReservacionMut = useCrearReservacion();
 
+  const hoyYmd = useMemo(() => extraerFechaMexico(new Date()), []);
+
   const fechaPorDefecto = useMemo(() => {
     const param = searchParams.get('fecha');
-    if (param && /^\d{4}-\d{2}-\d{2}$/.test(param)) return param;
-    return sumarDiasYmd(extraerFechaMexico(new Date()), 1);
-  }, [searchParams]);
+    if (param && /^\d{4}-\d{2}-\d{2}$/.test(param) && param >= hoyYmd) {
+      return param;
+    }
+    return sumarDiasYmd(hoyYmd, 1);
+  }, [searchParams, hoyYmd]);
 
   // Campos principales del formulario
   const [tipoEvento, setTipoEvento] = useState<string>('');
@@ -85,7 +94,7 @@ export function PaginaNuevaReservacion() {
     }
   }, [espacios, espacioId]);
 
-  // Recordatorios: por defecto 1 fila con Correo y 1 día
+  // Recordatorios: por defecto 1 fila con SIPREF implícito y Correo
   const [filasRecordatorios, setFilasRecordatorios] = useState<FilaRecordatorio[]>([
     crearFilaRecordatorioPorDefecto('fila-inicial'),
   ]);
@@ -97,16 +106,30 @@ export function PaginaNuevaReservacion() {
   const [erroresCampo, setErroresCampo] = useState<Record<string, string>>({});
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
 
+  const espacioActual = useMemo(
+    () => espacios.find((e) => e.id === espacioId) ?? null,
+    [espacios, espacioId],
+  );
+
   const duracion = useMemo(
     () => calcularDuracion(horaInicio, horaFin),
     [horaInicio, horaFin],
   );
 
+  const esFechaHoraPasada = useMemo(() => {
+    if (!fecha || !horaInicio) return false;
+    const inicioDate = new Date(construirIsoMexico(fecha, horaInicio));
+    if (Number.isNaN(inicioDate.getTime())) return false;
+    return inicioDate.getTime() <= Date.now();
+  }, [fecha, horaInicio]);
+
   // Verificación de disponibilidad con debounce (300 ms)
   useEffect(() => {
     setConflictosEnvio([]);
-    if (!espacioId || !fecha || !duracion.valida) {
+    setErrorGeneral(null);
+    if (!espacioId || !fecha || !duracion.valida || esFechaHoraPasada) {
       setDisponibilidad(null);
+      setVerificandoDisponibilidad(false);
       return;
     }
 
@@ -134,7 +157,7 @@ export function PaginaNuevaReservacion() {
       window.clearTimeout(timer);
       controlador.abort();
     };
-  }, [espacioId, fecha, horaInicio, horaFin, duracion.valida]);
+  }, [espacioId, fecha, horaInicio, horaFin, duracion.valida, esFechaHoraPasada]);
 
   const agregarFilaRecordatorio = () => {
     setFilasRecordatorios((prev) => [
@@ -183,6 +206,9 @@ export function PaginaNuevaReservacion() {
     if (!espacioId) {
       nuevosErrores.espacioId = 'Selecciona un aula o espacio.';
     }
+    if (esFechaHoraPasada) {
+      nuevosErrores.inicio = 'La fecha y hora de inicio deben estar en el futuro.';
+    }
     if (!duracion.valida) {
       nuevosErrores.fin = duracion.texto;
     }
@@ -204,7 +230,7 @@ export function PaginaNuevaReservacion() {
 
     try {
       await crearReservacionMut.mutateAsync({
-        tipoEvento,
+        tipoEvento: tipoEvento.trim(),
         espacioId,
         nombreEvento: nombreEvento.trim(),
         inicio: construirIsoMexico(fecha, horaInicio),
@@ -242,383 +268,486 @@ export function PaginaNuevaReservacion() {
   const limiteRecordatoriosAlcanzado =
     filasRecordatorios.length >= MAX_RECORDATORIOS ||
     recordatoriosPayload.length >= MAX_RECORDATORIOS;
+  const aulaDisponible =
+    !verificandoDisponibilidad &&
+    !esFechaHoraPasada &&
+    !errorGeneral &&
+    Boolean(disponibilidad?.disponible) &&
+    duracion.valida &&
+    conflictosActivos.length === 0;
 
   return (
-    <div className="max-w-2xl mx-auto bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-100">
-      {/* 1. Cabecera limpia */}
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4 mb-6">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-[#1c355e]/10 text-[#1c355e] flex items-center justify-center shrink-0">
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Encabezado superior */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-[#1c355e] text-[#fdbb11] flex items-center justify-center shadow-md shadow-[#1c355e]/15 shrink-0">
             <CalendarCheck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[#1c355e] leading-tight">
+            <Link
+              to="/calendario"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-[#1c355e] transition-colors mb-1"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Volver al calendario</span>
+            </Link>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-[#1c355e] tracking-tight leading-tight">
               Agendar Evento en Aula
             </h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
               Reserva de espacios para conferencias, juntas y exámenes en SIPREF
             </p>
           </div>
         </div>
 
-        <Link
-          to="/calendario"
-          aria-label="Volver al calendario"
-          title="Volver al calendario"
-          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors shrink-0"
-        >
-          <X className="w-4 h-4" />
-        </Link>
-      </div>
-
-      {/* 2. Alerta de disponibilidad / conflicto */}
-      {(conflictosActivos.length > 0 || errorGeneral) && (
-        <div
-          role="alert"
-          className="rounded-2xl bg-red-50 border border-red-200 p-4 text-red-800 mb-5 space-y-2"
-        >
-          <div className="flex items-center gap-2 font-bold text-sm">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-            <span>
-              {conflictosActivos.length > 0
-                ? 'Reserva Bloqueada — Aula Ocupada'
-                : 'No se pudo completar la reservación'}
-            </span>
-          </div>
-
-          {errorGeneral && (
-            <p className="text-xs font-medium text-red-700">{errorGeneral}</p>
-          )}
-
-          {conflictosActivos.length > 0 && (
-            <ul className="space-y-1.5 pt-1">
-              {conflictosActivos.map((c, idx) => (
-                <li
-                  key={`${c.origen}-${c.nombreEvento}-${idx}`}
-                  className="text-xs bg-white/70 border border-red-200/80 rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-red-100 text-red-800 font-bold text-[10px] uppercase tracking-wide shrink-0">
-                      {c.origen}
-                    </span>
-                    <span className="font-semibold text-red-900 truncate">
-                      {c.nombreEvento}
-                    </span>
-                  </div>
-                  <span className="font-semibold text-red-700 shrink-0">
-                    {formatearRangoHorario(c.inicio, c.fin)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {!verificandoDisponibilidad &&
-        disponibilidad?.disponible &&
-        duracion.valida &&
-        conflictosActivos.length === 0 && (
-          <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs font-semibold text-emerald-800 mb-5 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>
-              Aula disponible en el horario seleccionado (buffer de {bufferMinutos} min respetado).
+        {duracion.valida && (
+          <div className="inline-flex items-center gap-2 self-start sm:self-center bg-white border border-slate-200/80 rounded-full px-4 py-2 shadow-sm">
+            <Clock className="w-4 h-4 text-[#1c355e]" />
+            <span className="text-xs font-bold text-slate-600">
+              Duración: <span className="text-[#1c355e]">{duracion.texto}</span>
             </span>
           </div>
         )}
+      </div>
 
-      {verificandoDisponibilidad && (
-        <div className="rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-600 mb-5 flex items-center gap-2">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#1c355e]" />
-          <span>Verificando disponibilidad en tiempo real...</span>
-        </div>
-      )}
-
-      {/* 3. Campos del formulario */}
-      <form onSubmit={manejarSubmit} noValidate className="space-y-5">
-        {/* Fila 1: Tipo de evento y Aula / Espacio */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="campo-tipo-evento" className={LABEL_CLASS}>
-              TIPO DE EVENTO *
-            </label>
-            <input
-              id="campo-tipo-evento"
-              type="text"
-              value={tipoEvento}
-              onChange={(e) => setTipoEvento(e.target.value)}
-              placeholder="Ej. Conferencia, Junta, Examen, Taller..."
-              className={INPUT_CLASS}
-              required
-            />
-            {erroresCampo.tipoEvento && (
-              <p className="mt-1 text-xs font-medium text-red-600">
-                {erroresCampo.tipoEvento}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="campo-espacio" className={LABEL_CLASS}>
-              AULA / ESPACIO *
-            </label>
-            <select
-              id="campo-espacio"
-              value={espacioId}
-              onChange={(e) => setEspacioId(e.target.value)}
-              className={INPUT_CLASS}
-              required
-            >
-              {espacios.map((esp) => (
-                <option key={esp.id} value={esp.id}>
-                  {esp.nombre} {esp.edificio ? `(${esp.edificio})` : ''}
-                </option>
-              ))}
-            </select>
-            {erroresCampo.espacioId && (
-              <p className="mt-1 text-xs font-medium text-red-600">
-                {erroresCampo.espacioId}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Fila 2: Nombre del evento */}
-        <div>
-          <label htmlFor="campo-nombre-evento" className={LABEL_CLASS}>
-            NOMBRE DEL EVENTO *
-          </label>
-          <input
-            id="campo-nombre-evento"
-            type="text"
-            value={nombreEvento}
-            onChange={(e) => setNombreEvento(e.target.value)}
-            placeholder="Ej. Conferencia Magistral de Ingeniería de Software"
-            className={INPUT_CLASS}
-            required
-          />
-          {erroresCampo.nombreEvento && (
-            <p className="mt-1 text-xs font-medium text-red-600">
-              {erroresCampo.nombreEvento}
-            </p>
-          )}
-        </div>
-
-        {/* Fila 3: Fecha, Hora inicio, Hora fin */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label htmlFor="campo-fecha" className={LABEL_CLASS}>
-              FECHA *
-            </label>
-            <input
-              id="campo-fecha"
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              className={INPUT_CLASS}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="campo-hora-inicio" className={LABEL_CLASS}>
-              HORA INICIO *
-            </label>
-            <input
-              id="campo-hora-inicio"
-              type="time"
-              value={horaInicio}
-              onChange={(e) => setHoraInicio(e.target.value)}
-              className={INPUT_CLASS}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="campo-hora-fin" className={LABEL_CLASS}>
-              HORA FIN *
-            </label>
-            <input
-              id="campo-hora-fin"
-              type="time"
-              value={horaFin}
-              onChange={(e) => setHoraFin(e.target.value)}
-              className={INPUT_CLASS}
-              required
-            />
-            {(erroresCampo.fin || !duracion.valida) && (
-              <p className="mt-1 text-xs font-medium text-red-600">
-                {erroresCampo.fin ?? duracion.texto}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Fila 4: Responsable y Correo */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="campo-responsable" className={LABEL_CLASS}>
-              RESPONSABLE DEL EVENTO *
-            </label>
-            <input
-              id="campo-responsable"
-              type="text"
-              value={responsable}
-              onChange={(e) => setResponsable(e.target.value)}
-              placeholder="Ej. Dr. Juan Pérez"
-              className={INPUT_CLASS}
-              required
-            />
-            {erroresCampo.responsable && (
-              <p className="mt-1 text-xs font-medium text-red-600">
-                {erroresCampo.responsable}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="campo-correo-responsable" className={LABEL_CLASS}>
-              CORREO ELECTRÓNICO (PARA AVISO) *
-            </label>
-            <input
-              id="campo-correo-responsable"
-              type="email"
-              value={correoResponsable}
-              onChange={(e) => setCorreoResponsable(e.target.value)}
-              placeholder="ejemplo@correo.com"
-              className={INPUT_CLASS}
-              required
-            />
-            {erroresCampo.correoResponsable && (
-              <p className="mt-1 text-xs font-medium text-red-600">
-                {erroresCampo.correoResponsable}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Fila 5: Descripción opcional */}
-        <div>
-          <label htmlFor="campo-descripcion" className={LABEL_CLASS}>
-            DESCRIPCIÓN DEL EVENTO (OPCIONAL)
-          </label>
-          <textarea
-            id="campo-descripcion"
-            rows={2}
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Detalles sobre proyector, micrófonos, asistentes previstos, etc."
-            className={`${INPUT_CLASS} resize-none`}
-          />
-        </div>
-
-        {/* 4. Bloque compacto de Recordatorios */}
-        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-[#1c355e]" />
-              <span className="text-xs font-bold uppercase tracking-wider text-[#1c355e]">
-                CONFIGURACIÓN DE RECORDATORIOS
-              </span>
+      {/* Contenido en 2 columnas en escritorio */}
+      <form
+        onSubmit={manejarSubmit}
+        noValidate
+        className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
+      >
+        {/* Columna izquierda: Datos del formulario */}
+        <div className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 space-y-6">
+          {/* Bloque 1: Información del evento */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
+              <Building2 className="w-4 h-4 text-[#1c355e]" />
+              <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1c355e]">
+                Información del evento y espacio
+              </h2>
             </div>
 
-            <button
-              type="button"
-              onClick={agregarFilaRecordatorio}
-              disabled={limiteRecordatoriosAlcanzado}
-              className="text-xs font-bold text-[#1c355e] hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer"
-            >
-              + Agregar otro
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            {filasRecordatorios.map((fila, idx) => (
-              <div
-                key={fila.id}
-                className="flex flex-wrap items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 text-xs"
-              >
-                <label className="inline-flex items-center gap-1.5 font-semibold text-slate-700 cursor-pointer mr-1">
-                  <input
-                    type="checkbox"
-                    checked={fila.correo}
-                    onChange={(e) =>
-                      actualizarFilaRecordatorio(fila.id, { correo: e.target.checked })
-                    }
-                    className="rounded border-slate-300 text-[#1c355e] focus:ring-[#1c355e]/20"
-                  />
-                  <span>Correo</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="campo-tipo-evento" className={LABEL_CLASS}>
+                  TIPO DE EVENTO *
                 </label>
-
-                <span className="text-slate-400 font-bold">Anticipación:</span>
-
                 <input
-                  type="number"
-                  min={1}
-                  value={fila.anticipacion}
-                  onChange={(e) =>
-                    actualizarFilaRecordatorio(fila.id, {
-                      anticipacion: Math.max(1, Number(e.target.value) || 1),
-                    })
-                  }
-                  aria-label="Cantidad de anticipación"
-                  className="w-16 text-center font-bold px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-[#1c355e]/20"
+                  id="campo-tipo-evento"
+                  type="text"
+                  value={tipoEvento}
+                  onChange={(e) => {
+                    setTipoEvento(e.target.value);
+                    if (erroresCampo.tipoEvento) {
+                      setErroresCampo((p) => ({ ...p, tipoEvento: '' }));
+                    }
+                  }}
+                  placeholder="Ej. Conferencia, Junta, Examen, Taller..."
+                  className={INPUT_CLASS}
+                  required
                 />
+                {erroresCampo.tipoEvento && (
+                  <p className="mt-1 text-xs font-semibold text-red-600">
+                    {erroresCampo.tipoEvento}
+                  </p>
+                )}
+              </div>
 
+              <div>
+                <label htmlFor="campo-espacio" className={LABEL_CLASS}>
+                  AULA / ESPACIO *
+                </label>
                 <select
-                  value={fila.unidad}
-                  onChange={(e) =>
-                    actualizarFilaRecordatorio(fila.id, {
-                      unidad: e.target.value as UnidadAnticipacion,
-                    })
-                  }
-                  aria-label="Unidad de anticipación"
-                  className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-[#1c355e]/20"
+                  id="campo-espacio"
+                  value={espacioId}
+                  onChange={(e) => setEspacioId(e.target.value)}
+                  className={INPUT_CLASS}
+                  required
                 >
-                  {OPCIONES_UNIDAD_ANTICIPACION.map((op) => (
-                    <option key={op.valor} value={op.valor}>
-                      {op.etiqueta}
+                  {espacios.map((esp) => (
+                    <option key={esp.id} value={esp.id}>
+                      {esp.nombre} {esp.edificio ? `(${esp.edificio})` : ''}
                     </option>
                   ))}
                 </select>
-
-                {idx > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => eliminarFilaRecordatorio(fila.id)}
-                    aria-label="Eliminar recordatorio"
-                    className="ml-auto text-slate-400 hover:text-red-600 p-1 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                {erroresCampo.espacioId && (
+                  <p className="mt-1 text-xs font-semibold text-red-600">
+                    {erroresCampo.espacioId}
+                  </p>
                 )}
               </div>
-            ))}
+            </div>
+
+            <div>
+              <label htmlFor="campo-nombre-evento" className={LABEL_CLASS}>
+                NOMBRE DEL EVENTO *
+              </label>
+              <input
+                id="campo-nombre-evento"
+                type="text"
+                value={nombreEvento}
+                onChange={(e) => {
+                  setNombreEvento(e.target.value);
+                  if (erroresCampo.nombreEvento) {
+                    setErroresCampo((p) => ({ ...p, nombreEvento: '' }));
+                  }
+                }}
+                placeholder="Ej. Conferencia Magistral de Ingeniería de Software"
+                className={INPUT_CLASS}
+                required
+              />
+              {erroresCampo.nombreEvento && (
+                <p className="mt-1 text-xs font-semibold text-red-600">
+                  {erroresCampo.nombreEvento}
+                </p>
+              )}
+            </div>
           </div>
 
-          {erroresCampo.recordatorios && (
-            <p className="text-xs font-medium text-red-600">
-              {erroresCampo.recordatorios}
-            </p>
-          )}
+          {/* Bloque 2: Fecha y horario */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
+              <CalendarClock className="w-4 h-4 text-[#1c355e]" />
+              <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1c355e]">
+                Fecha y horario
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label htmlFor="campo-fecha" className={LABEL_CLASS}>
+                  FECHA *
+                </label>
+                <input
+                  id="campo-fecha"
+                  type="date"
+                  min={hoyYmd}
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  className={INPUT_CLASS}
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="campo-hora-inicio" className={LABEL_CLASS}>
+                  HORA INICIO *
+                </label>
+                <input
+                  id="campo-hora-inicio"
+                  type="time"
+                  value={horaInicio}
+                  onChange={(e) => setHoraInicio(e.target.value)}
+                  className={INPUT_CLASS}
+                  required
+                />
+                {erroresCampo.inicio && (
+                  <p className="mt-1 text-xs font-semibold text-red-600">
+                    {erroresCampo.inicio}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="campo-hora-fin" className={LABEL_CLASS}>
+                  HORA FIN *
+                </label>
+                <input
+                  id="campo-hora-fin"
+                  type="time"
+                  value={horaFin}
+                  onChange={(e) => setHoraFin(e.target.value)}
+                  className={INPUT_CLASS}
+                  required
+                />
+                {(erroresCampo.fin || !duracion.valida) && (
+                  <p className="mt-1 text-xs font-semibold text-red-600">
+                    {erroresCampo.fin ?? duracion.texto}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Bloque 3: Responsable y detalles */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
+              <User className="w-4 h-4 text-[#1c355e]" />
+              <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1c355e]">
+                Responsable y descripción
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="campo-responsable" className={LABEL_CLASS}>
+                  RESPONSABLE DEL EVENTO *
+                </label>
+                <input
+                  id="campo-responsable"
+                  type="text"
+                  value={responsable}
+                  onChange={(e) => setResponsable(e.target.value)}
+                  placeholder="Ej. Dr. Juan Pérez"
+                  className={INPUT_CLASS}
+                  required
+                />
+                {erroresCampo.responsable && (
+                  <p className="mt-1 text-xs font-semibold text-red-600">
+                    {erroresCampo.responsable}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="campo-correo-responsable" className={LABEL_CLASS}>
+                  CORREO ELECTRÓNICO (PARA AVISO) *
+                </label>
+                <div className="relative">
+                  <input
+                    id="campo-correo-responsable"
+                    type="email"
+                    value={correoResponsable}
+                    onChange={(e) => setCorreoResponsable(e.target.value)}
+                    placeholder="ejemplo@correo.com"
+                    className={`${INPUT_CLASS} pr-9`}
+                    required
+                  />
+                  <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+                {erroresCampo.correoResponsable && (
+                  <p className="mt-1 text-xs font-semibold text-red-600">
+                    {erroresCampo.correoResponsable}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="campo-descripcion" className={LABEL_CLASS}>
+                DESCRIPCIÓN DEL EVENTO (OPCIONAL)
+              </label>
+              <textarea
+                id="campo-descripcion"
+                rows={3}
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Detalles sobre proyector, micrófonos, asistentes previstos, etc."
+                className={`${INPUT_CLASS} resize-none`}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* 5. Botonera inferior */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-          <Link
-            to="/calendario"
-            className="border border-slate-200 rounded-xl px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            Cancelar
-          </Link>
+        {/* Columna derecha: Disponibilidad, Recordatorios y Acciones */}
+        <div className="lg:col-span-4 space-y-5 lg:sticky lg:top-24">
+          {/* Tarjeta de estado de disponibilidad */}
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-3">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1c355e]">
+              Disponibilidad del espacio
+            </h2>
 
-          <button
-            type="submit"
-            disabled={crearReservacionMut.isPending}
-            className="bg-[#1c355e] hover:bg-[#152847] text-white rounded-xl px-6 py-2.5 text-sm font-bold shadow-sm transition-colors disabled:opacity-60 cursor-pointer"
-          >
-            {crearReservacionMut.isPending ? 'Agendando...' : 'Agendar Evento'}
-          </button>
+            {verificandoDisponibilidad && (
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5 text-xs font-semibold text-slate-600 flex items-center gap-2.5">
+                <Loader2 className="w-4 h-4 animate-spin text-[#1c355e] shrink-0" />
+                <span>Verificando horario en SIPREF...</span>
+              </div>
+            )}
+
+            {!verificandoDisponibilidad && esFechaHoraPasada && (
+              <div
+                role="alert"
+                className="rounded-2xl bg-amber-50 border border-amber-200 p-3.5 text-amber-900 space-y-1"
+              >
+                <div className="flex items-center gap-2 font-bold text-xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Horario en el pasado</span>
+                </div>
+                <p className="text-xs text-amber-800">
+                  La fecha y hora de inicio deben estar en el futuro para poder agendar.
+                </p>
+              </div>
+            )}
+
+            {!verificandoDisponibilidad &&
+              !esFechaHoraPasada &&
+              (conflictosActivos.length > 0 || errorGeneral) && (
+                <div
+                  role="alert"
+                  className="rounded-2xl bg-red-50 border border-red-200 p-3.5 text-red-800 space-y-2"
+                >
+                  <div className="flex items-center gap-2 font-bold text-xs">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                    <span>
+                      {conflictosActivos.length > 0
+                        ? 'Reserva Bloqueada — Aula Ocupada'
+                        : 'No se pudo completar'}
+                    </span>
+                  </div>
+
+                  {errorGeneral && (
+                    <p className="text-xs font-medium text-red-700">{errorGeneral}</p>
+                  )}
+
+                  {conflictosActivos.length > 0 && (
+                    <ul className="space-y-1.5 pt-1">
+                      {conflictosActivos.map((c, idx) => (
+                        <li
+                          key={`${c.origen}-${c.nombreEvento}-${idx}`}
+                          className="text-xs bg-white/80 border border-red-200/80 rounded-xl px-2.5 py-2 space-y-1"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[10px] uppercase tracking-wide shrink-0">
+                              {c.origen}
+                            </span>
+                            <span className="font-semibold text-red-900 truncate">
+                              {c.nombreEvento}
+                            </span>
+                          </div>
+                          <p className="text-[11px] font-semibold text-red-700">
+                            {formatearRangoHorario(c.inicio, c.fin)}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+            {aulaDisponible && (
+              <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-3.5 text-emerald-900 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-xs text-emerald-800">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Aula disponible</span>
+                </div>
+                <p className="text-xs text-emerald-700 leading-relaxed">
+                  <strong>{espacioActual?.nombre ?? 'El espacio'}</strong> está libre en el horario seleccionado (buffer de {bufferMinutos} min respetado).
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Tarjeta compacta de Recordatorios */}
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-[#1c355e]" />
+                <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1c355e]">
+                  Recordatorios
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={agregarFilaRecordatorio}
+                disabled={limiteRecordatoriosAlcanzado}
+                className="text-xs font-bold text-[#1c355e] hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer"
+              >
+                + Agregar otro
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {filasRecordatorios.map((fila, idx) => (
+                <div
+                  key={fila.id}
+                  className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 text-xs"
+                >
+                  <label className="inline-flex items-center gap-1.5 font-semibold text-slate-700 cursor-pointer mr-1">
+                    <input
+                      type="checkbox"
+                      checked={fila.correo}
+                      onChange={(e) =>
+                        actualizarFilaRecordatorio(fila.id, { correo: e.target.checked })
+                      }
+                      className="rounded border-slate-300 text-[#1c355e] focus:ring-[#1c355e]/20"
+                    />
+                    <span>Correo</span>
+                  </label>
+
+                  <input
+                    type="number"
+                    min={1}
+                    value={fila.anticipacion}
+                    onChange={(e) =>
+                      actualizarFilaRecordatorio(fila.id, {
+                        anticipacion: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                    aria-label="Cantidad de anticipación"
+                    className="w-14 text-center font-bold px-1.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-800 outline-none focus:ring-2 focus:ring-[#1c355e]/20"
+                  />
+
+                  <select
+                    value={fila.unidad}
+                    onChange={(e) =>
+                      actualizarFilaRecordatorio(fila.id, {
+                        unidad: e.target.value as UnidadAnticipacion,
+                      })
+                    }
+                    aria-label="Unidad de anticipación"
+                    className="flex-1 min-w-[95px] px-2 py-1 bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c355e]/20"
+                  >
+                    {OPCIONES_UNIDAD_ANTICIPACION.map((op) => (
+                      <option key={op.valor} value={op.valor}>
+                        {op.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => eliminarFilaRecordatorio(fila.id)}
+                      aria-label="Eliminar recordatorio"
+                      className="text-slate-400 hover:text-red-600 p-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-snug">
+              La notificación en SIPREF se envía automáticamente por defecto.
+            </p>
+
+            {erroresCampo.recordatorios && (
+              <p className="text-xs font-semibold text-red-600">
+                {erroresCampo.recordatorios}
+              </p>
+            )}
+          </div>
+
+          {/* Botones de acción */}
+          <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row lg:flex-col gap-2.5">
+            <button
+              type="submit"
+              disabled={crearReservacionMut.isPending}
+              className="w-full bg-[#1c355e] hover:bg-[#152847] text-white rounded-xl px-5 py-3 text-sm font-bold shadow-md shadow-[#1c355e]/15 transition-all disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
+            >
+              {crearReservacionMut.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Agendando...</span>
+                </>
+              ) : (
+                <>
+                  <CalendarCheck className="w-4 h-4 text-[#fdbb11]" />
+                  <span>Agendar Evento</span>
+                </>
+              )}
+            </button>
+
+            <Link
+              to="/calendario"
+              className="w-full text-center border border-slate-200 rounded-xl px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Cancelar
+            </Link>
+          </div>
         </div>
       </form>
     </div>
