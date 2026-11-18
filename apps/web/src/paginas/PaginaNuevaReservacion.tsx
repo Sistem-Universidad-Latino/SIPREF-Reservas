@@ -449,7 +449,7 @@ export function PaginaNuevaReservacion() {
               <span>Volver al calendario</span>
             </Link>
             <h1 className="text-xl sm:text-2xl font-extrabold text-[#1c355e] tracking-tight leading-tight">
-              Agendar Evento en Aula
+              Agendar Evento
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
               Reserva de espacios para conferencias, juntas y exámenes en SIPREF
