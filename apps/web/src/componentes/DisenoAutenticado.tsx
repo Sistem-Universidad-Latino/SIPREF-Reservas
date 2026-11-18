@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { salir, useYo } from '../api/consultas';
 import { esApiError } from '../api/cliente';
-import { obtenerEtiquetaRol } from '../utilidades/catalogos';
 import logoUlatino from '../assets/logo.png';
 
 function formatearFechaInstitucional(fecha: Date): string {
@@ -268,9 +267,6 @@ export function DisenoAutenticado() {
             <div className="flex flex-col items-end justify-center min-w-0 hidden sm:flex">
               <p className="text-xs sm:text-sm font-bold text-[#1b1c1e] leading-tight truncate max-w-[160px] lg:max-w-[220px] group-hover:text-[#244275] transition-colors">
                 {yo.nombre}
-              </p>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                {obtenerEtiquetaRol(yo.rol)}
               </p>
             </div>
             {yo.fotoUrl ? (
