@@ -34,6 +34,8 @@ export interface ReservacionResumenDto {
   responsable: string;
   estado: EstadoReservacionMostrado;
   resumenRecursos: string;
+  acomodoMobiliario: string;
+  sillasMesaPanel: number;
 }
 
 export interface ReservacionDetalleDto extends ReservacionResumenDto {
@@ -332,6 +334,8 @@ export async function consultarReservaciones(
       r.fin,
       r.responsable,
       r.estado,
+      r.acomodo_mobiliario,
+      r.sillas_mesa_panel,
       COALESCE(
         (
           SELECT GROUP_CONCAT(CONCAT(c.nombre, ' ×', re.cantidad) ORDER BY c.nombre ASC SEPARATOR ', ')
@@ -364,6 +368,8 @@ export async function consultarReservaciones(
       responsable: String(r.responsable),
       estado: derivarEstadoReservacion(String(r.estado), finDate, ahora),
       resumenRecursos: String(r.resumen_recursos ?? ''),
+      acomodoMobiliario: String(r.acomodo_mobiliario ?? ''),
+      sillasMesaPanel: Number(r.sillas_mesa_panel ?? 0),
     };
   });
 

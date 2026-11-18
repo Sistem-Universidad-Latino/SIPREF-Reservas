@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, construirQuery } from './cliente';
 import type {
+  Acomodo,
   ActualizarPerfilEntrada,
   ConfiguracionPublica,
   DevLoginEntrada,
@@ -28,6 +29,8 @@ export const claves = {
   configuracion: ['configuracion'] as const,
   espacios: ['espacios'] as const,
   recursos: ['recursos'] as const,
+  recursosPredefinidos: ['recursos', 'estado-predefinidos'] as const,
+  acomodos: ['acomodos'] as const,
   plantillasEvento: ['plantillas-evento'] as const,
   calendario: (desde: string, hasta: string, espacioId?: string) =>
     ['calendario', desde, hasta, espacioId ?? ''] as const,
@@ -108,6 +111,86 @@ export function useEliminarRecurso() {
     mutationFn: (id: number) => api<void>(`/api/recursos/${id}`, { method: 'DELETE' }),
     onSuccess: (_res, id) => {
       qc.setQueryData<Recurso[]>(claves.recursos, (prev) =>
+        prev ? prev.filter((x) => x.id !== id) : [],
+      );
+      qc.invalidateQueries({ queryKey: claves.recursosPredefinidos });
+    },
+  });
+}
+
+export const useRecursosPredefinidosInactivos = () =>
+  useQuery({
+    queryKey: claves.recursosPredefinidos,
+    queryFn: () => api<{ hayInactivos: boolean }>('/api/recursos/estado-predefinidos'),
+    staleTime: 30_000,
+  });
+
+export function useEliminarRecursosLote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) =>
+      api<void>('/api/recursos/eliminar-lote', { method: 'POST', body: { ids } }),
+    onSuccess: (_res, ids) => {
+      const conjunto = new Set(ids);
+      qc.setQueryData<Recurso[]>(claves.recursos, (prev) =>
+        prev ? prev.filter((x) => !conjunto.has(x.id)) : [],
+      );
+      qc.invalidateQueries({ queryKey: claves.recursosPredefinidos });
+    },
+  });
+}
+
+export function useRestaurarRecursosPredefinidos() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<Recurso[]>('/api/recursos/restaurar-predefinidos', { method: 'POST' }),
+    onSuccess: (lista) => {
+      qc.setQueryData<Recurso[]>(claves.recursos, lista);
+      qc.setQueryData(claves.recursosPredefinidos, { hayInactivos: false });
+    },
+  });
+}
+
+export const useAcomodos = () =>
+  useQuery({
+    queryKey: claves.acomodos,
+    queryFn: () => api<Acomodo[]>('/api/acomodos'),
+    staleTime: 60_000,
+  });
+
+export function useCrearAcomodo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (nombre: string) =>
+      api<Acomodo>('/api/acomodos', { method: 'POST', body: { nombre } }),
+    onSuccess: (a) => {
+      qc.setQueryData<Acomodo[]>(claves.acomodos, (prev) =>
+        prev ? (prev.some((x) => x.id === a.id) ? prev : [...prev, a]) : [a],
+      );
+    },
+  });
+}
+
+export function useActualizarAcomodo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, nombre }: { id: number; nombre: string }) =>
+      api<Acomodo>(`/api/acomodos/${id}`, { method: 'PUT', body: { nombre } }),
+    onSuccess: (a) => {
+      qc.setQueryData<Acomodo[]>(claves.acomodos, (prev) =>
+        prev ? prev.map((x) => (x.id === a.id ? a : x)) : [a],
+      );
+    },
+  });
+}
+
+export function useEliminarAcomodo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/api/acomodos/${id}`, { method: 'DELETE' }),
+    onSuccess: (_res, id) => {
+      qc.setQueryData<Acomodo[]>(claves.acomodos, (prev) =>
         prev ? prev.filter((x) => x.id !== id) : [],
       );
     },

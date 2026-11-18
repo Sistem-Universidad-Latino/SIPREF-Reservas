@@ -80,6 +80,11 @@ export interface Recurso {
   esPredefinido: boolean;
 }
 
+export interface Acomodo {
+  id: number;
+  nombre: string;
+}
+
 export interface RecursoPlantilla {
   recursoId: number;
   nombre: string;
@@ -127,6 +132,8 @@ export interface ReservacionResumen {
   responsable: string;
   estado: EstadoReservacion;
   resumenRecursos: string;
+  acomodoMobiliario?: string;
+  sillasMesaPanel?: number;
 }
 
 export interface RecursoAsignado {

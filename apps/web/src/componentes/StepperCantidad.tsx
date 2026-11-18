@@ -5,16 +5,21 @@ interface PropiedadesStepperCantidad {
   valor: number;
   alCambiar: (nuevoValor: number) => void;
   etiqueta: string;
+  min?: number;
+  placeholder?: string;
 }
 
 /**
  * Control numérico compacto con botones − / + y entrada directa por teclado.
- * Normaliza a 1 al perder foco si queda vacío o menor que 1.
+ * Usa inputMode="numeric" sin flechas nativas, selecciona todo al enfocar,
+ * confirma con Enter sin enviar el formulario padre y normaliza al perder foco.
  */
 export function StepperCantidad({
   valor,
   alCambiar,
   etiqueta,
+  min = 1,
+  placeholder,
 }: PropiedadesStepperCantidad) {
   const [texto, setTexto] = useState(String(valor));
 
@@ -24,7 +29,7 @@ export function StepperCantidad({
 
   const confirmar = (raw: string) => {
     const n = parseInt(raw, 10);
-    const normalizado = Number.isFinite(n) && n >= 1 ? n : 1;
+    const normalizado = Number.isFinite(n) && n >= min ? n : min;
     setTexto(String(normalizado));
     if (normalizado !== valor) {
       alCambiar(normalizado);
@@ -36,7 +41,7 @@ export function StepperCantidad({
       <button
         type="button"
         onClick={() => {
-          const siguiente = Math.max(1, valor - 1);
+          const siguiente = Math.max(min, valor - 1);
           setTexto(String(siguiente));
           alCambiar(siguiente);
         }}
@@ -47,20 +52,30 @@ export function StepperCantidad({
       </button>
 
       <input
-        type="number"
-        min={1}
+        type="text"
+        inputMode="numeric"
         value={texto}
+        placeholder={placeholder}
+        onFocus={(e) => e.target.select()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
         onChange={(e) => {
-          const val = e.target.value;
-          setTexto(val);
-          const n = parseInt(val, 10);
-          if (Number.isFinite(n) && n >= 1) {
-            alCambiar(n);
+          const soloDigitos = e.target.value.replace(/\D+/g, '');
+          setTexto(soloDigitos);
+          if (soloDigitos !== '') {
+            const n = parseInt(soloDigitos, 10);
+            if (Number.isFinite(n) && n >= min) {
+              alCambiar(n);
+            }
           }
         }}
         onBlur={(e) => confirmar(e.target.value)}
         aria-label={`Cantidad de ${etiqueta}`}
-        className="w-11 text-center text-xs font-extrabold text-[#1c355e] bg-transparent outline-none py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className="w-11 text-center text-xs font-extrabold text-[#1c355e] bg-transparent outline-none py-0.5"
       />
 
       <button

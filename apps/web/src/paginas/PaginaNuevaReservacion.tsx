@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
+  Armchair,
   ArrowLeft,
   Bell,
   Building2,
@@ -19,20 +20,29 @@ import {
   Sparkles,
   Trash2,
   User,
+  X,
 } from 'lucide-react';
 import {
   consultarDisponibilidad,
+  useAcomodos,
+  useActualizarAcomodo,
   useConfiguracion,
+  useCrearAcomodo,
   useCrearRecurso,
   useCrearReservacion,
+  useEliminarAcomodo,
   useEliminarRecurso,
+  useEliminarRecursosLote,
   useEspacios,
   usePlantillasEvento,
   useRecursos,
+  useRecursosPredefinidosInactivos,
+  useRestaurarRecursosPredefinidos,
   useYo,
 } from '../api/consultas';
 import { esApiError, mensajeDeError } from '../api/cliente';
 import type {
+  Acomodo,
   Conflicto,
   DisponibilidadRespuesta,
   PlantillaEvento,
@@ -79,10 +89,17 @@ export function PaginaNuevaReservacion() {
     [espaciosRaw],
   );
   const { data: recursosCatalogo = [] } = useRecursos();
+  const { data: estadoPredefinidos } = useRecursosPredefinidosInactivos();
+  const { data: acomodosCatalogo = [] } = useAcomodos();
   const { data: plantillasEvento = [] } = usePlantillasEvento();
 
   const crearRecursoMut = useCrearRecurso();
   const eliminarRecursoMut = useEliminarRecurso();
+  const eliminarLoteMut = useEliminarRecursosLote();
+  const restaurarPredefinidosMut = useRestaurarRecursosPredefinidos();
+  const crearAcomodoMut = useCrearAcomodo();
+  const actualizarAcomodoMut = useActualizarAcomodo();
+  const eliminarAcomodoMut = useEliminarAcomodo();
   const crearReservacionMut = useCrearReservacion();
 
   const hoyYmd = useMemo(() => extraerFechaMexico(new Date()), []);
@@ -136,8 +153,13 @@ export function PaginaNuevaReservacion() {
   const [nuevoMaterialRequiereCantidad, setNuevoMaterialRequiereCantidad] = useState(true);
   const [errorNuevoMaterial, setErrorNuevoMaterial] = useState<string | null>(null);
   const [materialAEliminar, setMaterialAEliminar] = useState<Recurso | null>(null);
+  const [modoSeleccionEliminar, setModoSeleccionEliminar] = useState(false);
+  const [idsEliminarLote, setIdsEliminarLote] = useState<number[]>([]);
   const [acomodoMobiliario, setAcomodoMobiliario] = useState<string>('');
   const [sillasMesaPanel, setSillasMesaPanel] = useState<number>(0);
+  const [editandoAcomodos, setEditandoAcomodos] = useState(false);
+  const [nuevoAcomodoNombre, setNuevoAcomodoNombre] = useState('');
+  const [acomodoEnEdicion, setAcomodoEnEdicion] = useState<Acomodo | null>(null);
 
   // Recordatorios: por defecto 1 fila con SIPREF implícito y Correo
   const [filasRecordatorios, setFilasRecordatorios] = useState<FilaRecordatorio[]>([
@@ -287,6 +309,76 @@ export function PaginaNuevaReservacion() {
     }
   };
 
+  const alternarIdEliminarLote = (id: number) => {
+    setIdsEliminarLote((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const manejarEliminarLote = async () => {
+    if (idsEliminarLote.length === 0) return;
+    try {
+      await eliminarLoteMut.mutateAsync(idsEliminarLote);
+      setRecursosSeleccionados((prev) => {
+        const copia = { ...prev };
+        for (const id of idsEliminarLote) delete copia[id];
+        return copia;
+      });
+      setIdsEliminarLote([]);
+      setModoSeleccionEliminar(false);
+      toast.exito('Materiales eliminados del catálogo');
+    } catch (err) {
+      toast.error(mensajeDeError(err));
+    }
+  };
+
+  const manejarRestaurarPredefinidos = async () => {
+    try {
+      await restaurarPredefinidosMut.mutateAsync();
+      toast.exito('Materiales predefinidos restaurados');
+    } catch (err) {
+      toast.error(mensajeDeError(err));
+    }
+  };
+
+  const manejarGuardarAcomodo = async () => {
+    const nombreLimpio = nuevoAcomodoNombre.trim();
+    if (!nombreLimpio) return;
+    try {
+      if (acomodoEnEdicion) {
+        const actualizado = await actualizarAcomodoMut.mutateAsync({
+          id: acomodoEnEdicion.id,
+          nombre: nombreLimpio,
+        });
+        if (acomodoMobiliario === acomodoEnEdicion.nombre) {
+          setAcomodoMobiliario(actualizado.nombre);
+        }
+        setAcomodoEnEdicion(null);
+        toast.exito('Opción de acomodo actualizada');
+      } else {
+        await crearAcomodoMut.mutateAsync(nombreLimpio);
+        toast.exito('Opción de acomodo agregada');
+      }
+      setNuevoAcomodoNombre('');
+    } catch (err) {
+      toast.error(mensajeDeError(err));
+    }
+  };
+
+  const manejarEliminarAcomodo = async (ac: Acomodo) => {
+    try {
+      await eliminarAcomodoMut.mutateAsync(ac.id);
+      if (acomodoMobiliario === ac.nombre) setAcomodoMobiliario('');
+      if (acomodoEnEdicion?.id === ac.id) {
+        setAcomodoEnEdicion(null);
+        setNuevoAcomodoNombre('');
+      }
+      toast.exito('Opción de acomodo eliminada');
+    } catch (err) {
+      toast.error(mensajeDeError(err));
+    }
+  };
+
   const cantidadMaterialesSeleccionados = Object.keys(recursosSeleccionados).length;
 
   const resumenMaterialesTexto = useMemo(() => {
@@ -299,7 +391,7 @@ export function PaginaNuevaReservacion() {
     if (acomodoMobiliario.trim()) {
       partes.push(`Acomodo: ${acomodoMobiliario.trim()}`);
     }
-    return partes.length > 0 ? partes.join(', ') : 'Ningún material seleccionado';
+    return partes.length > 0 ? partes.join(' • ') : 'Ningún material seleccionado';
   }, [recursosCatalogo, recursosSeleccionados, sillasMesaPanel, acomodoMobiliario]);
 
   const agregarFilaRecordatorio = () => {
@@ -351,6 +443,11 @@ export function PaginaNuevaReservacion() {
     setErrorNuevoMaterial(null);
     setAcomodoMobiliario('');
     setSillasMesaPanel(0);
+    setModoSeleccionEliminar(false);
+    setIdsEliminarLote([]);
+    setEditandoAcomodos(false);
+    setAcomodoEnEdicion(null);
+    setNuevoAcomodoNombre('');
     setFilasRecordatorios([crearFilaRecordatorioPorDefecto('fila-inicial')]);
     setErroresCampo({});
     setErrorGeneral(null);
@@ -817,6 +914,7 @@ export function PaginaNuevaReservacion() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {recursosCatalogo.map((rec) => {
                     const seleccionado = recursosSeleccionados[rec.id] !== undefined;
+                    const marcadoEliminar = idsEliminarLote.includes(rec.id);
                     const cantidad = recursosSeleccionados[rec.id] ?? 1;
                     const esFijo = rec.unidad === 'fijo';
                     const requiereCantidad = rec.unidad !== 'sin_cantidad' && !esFijo;
@@ -825,17 +923,31 @@ export function PaginaNuevaReservacion() {
                       <div
                         key={rec.id}
                         className={`flex items-center justify-between gap-2 rounded-xl border p-2.5 transition-all ${
-                          seleccionado
-                            ? 'border-[#1c355e]/40 bg-white shadow-xs'
-                            : 'border-slate-200 bg-white/80 hover:bg-white'
+                          modoSeleccionEliminar
+                            ? marcadoEliminar
+                              ? 'border-rose-400 bg-rose-50/70 shadow-xs'
+                              : 'border-rose-200/80 bg-white/80 hover:bg-rose-50/30'
+                            : seleccionado
+                              ? 'border-[#1c355e]/40 bg-white shadow-xs'
+                              : 'border-slate-200 bg-white/80 hover:bg-white'
                         }`}
                       >
                         <label className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer">
                           <input
                             type="checkbox"
-                            checked={seleccionado}
-                            onChange={(e) => alternarMaterial(rec.id, e.target.checked)}
-                            className="rounded border-slate-300 text-[#1c355e] focus:ring-[#1c355e]/20 shrink-0"
+                            checked={modoSeleccionEliminar ? marcadoEliminar : seleccionado}
+                            onChange={(e) => {
+                              if (modoSeleccionEliminar) {
+                                alternarIdEliminarLote(rec.id);
+                              } else {
+                                alternarMaterial(rec.id, e.target.checked);
+                              }
+                            }}
+                            className={`rounded focus:ring-2 shrink-0 ${
+                              modoSeleccionEliminar
+                                ? 'border-rose-300 text-rose-600 focus:ring-rose-200'
+                                : 'border-slate-300 text-[#1c355e] focus:ring-[#1c355e]/20'
+                            }`}
                           />
                           <span className="text-xs font-semibold text-slate-800 truncate">
                             {rec.nombre}
@@ -847,16 +959,16 @@ export function PaginaNuevaReservacion() {
                           )}
                         </label>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {seleccionado && requiereCantidad && (
-                            <StepperCantidad
-                              valor={cantidad}
-                              alCambiar={(n) => cambiarCantidadMaterial(rec.id, n)}
-                              etiqueta={rec.nombre}
-                            />
-                          )}
+                        {!modoSeleccionEliminar && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {seleccionado && requiereCantidad && (
+                              <StepperCantidad
+                                valor={cantidad}
+                                alCambiar={(n) => cambiarCantidadMaterial(rec.id, n)}
+                                etiqueta={rec.nombre}
+                              />
+                            )}
 
-                          {!rec.esPredefinido && (
                             <button
                               type="button"
                               onClick={() => setMaterialAEliminar(rec)}
@@ -866,21 +978,76 @@ export function PaginaNuevaReservacion() {
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
                 {!mostrarAgregarMaterial ? (
-                  <button
-                    type="button"
-                    onClick={() => setMostrarAgregarMaterial(true)}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-[#1c355e] hover:underline cursor-pointer"
-                  >
-                    + Agregar otro material
-                  </button>
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div className="flex flex-wrap items-center gap-3">
+                      {!modoSeleccionEliminar && (
+                        <button
+                          type="button"
+                          onClick={() => setMostrarAgregarMaterial(true)}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-[#1c355e] hover:underline cursor-pointer"
+                        >
+                          + Agregar otro material
+                        </button>
+                      )}
+                      {estadoPredefinidos?.hayInactivos && !modoSeleccionEliminar && (
+                        <button
+                          type="button"
+                          onClick={manejarRestaurarPredefinidos}
+                          disabled={restaurarPredefinidosMut.isPending}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 hover:underline disabled:opacity-50 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Restaurar predefinidos</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {!modoSeleccionEliminar ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIdsEliminarLote([]);
+                          setModoSeleccionEliminar(true);
+                        }}
+                        className="text-xs font-bold text-rose-600 hover:underline cursor-pointer"
+                      >
+                        Seleccionar para eliminar
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModoSeleccionEliminar(false);
+                            setIdsEliminarLote([]);
+                          }}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={manejarEliminarLote}
+                          disabled={
+                            idsEliminarLote.length === 0 || eliminarLoteMut.isPending
+                          }
+                          className="rounded-xl bg-rose-600 hover:bg-rose-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50 cursor-pointer"
+                        >
+                          {eliminarLoteMut.isPending
+                            ? 'Eliminando...'
+                            : `Eliminar seleccionados (${idsEliminarLote.length})`}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
@@ -953,31 +1120,123 @@ export function PaginaNuevaReservacion() {
               </div>
             )}
 
-            {/* Acomodo de mesas/sillas y sillas para mesa panel */}
-            <div className="pt-2 border-t border-slate-200/70 space-y-3">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(['Auditorio', 'Tipo Escuela', 'Herradura / U', 'Mesa Redonda'] as const).map(
-                  (opcion) => {
-                    const activo = acomodoMobiliario.trim() === opcion;
-                    return (
-                      <button
-                        key={opcion}
-                        type="button"
-                        onClick={() => setAcomodoMobiliario(activo ? '' : opcion)}
-                        className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
-                          activo
-                            ? 'border-[#1c355e] bg-[#1c355e] text-white'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-[#1c355e]/40 hover:text-[#1c355e]'
-                        }`}
-                      >
-                        {opcion}
-                      </button>
-                    );
-                  },
-                )}
+            {/* Subtarjeta: Acomodo de mesas, sillas y mesa panel */}
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-3.5 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Armchair className="w-4 h-4 text-[#1c355e] shrink-0" />
+                  <h3 className="text-xs font-bold text-[#1c355e]">
+                    Acomodo de mesas, sillas y mesa panel
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditandoAcomodos((v) => !v);
+                    setAcomodoEnEdicion(null);
+                    setNuevoAcomodoNombre('');
+                  }}
+                  className="text-[11px] font-bold text-[#1c355e] hover:underline cursor-pointer shrink-0"
+                >
+                  {editandoAcomodos ? 'Listo' : 'Editar / Eliminar opciones'}
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Chips dinámicos desde GET /api/acomodos */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {acomodosCatalogo.map((ac) => {
+                  const activo = acomodoMobiliario.trim() === ac.nombre;
+                  if (editandoAcomodos) {
+                    return (
+                      <div
+                        key={ac.id}
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
+                      >
+                        <span>{ac.nombre}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAcomodoEnEdicion(ac);
+                            setNuevoAcomodoNombre(ac.nombre);
+                          }}
+                          title={`Renombrar ${ac.nombre}`}
+                          className="text-[#1c355e] hover:text-[#152847] p-0.5 cursor-pointer"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => manejarEliminarAcomodo(ac)}
+                          title={`Eliminar ${ac.nombre}`}
+                          className="text-rose-500 hover:text-rose-700 p-0.5 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={ac.id}
+                      type="button"
+                      onClick={() => setAcomodoMobiliario(activo ? '' : ac.nombre)}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                        activo
+                          ? 'border-[#1c355e] bg-[#1c355e] text-white'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-[#1c355e]/40 hover:text-[#1c355e]'
+                      }`}
+                    >
+                      {ac.nombre}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {editandoAcomodos && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                  <input
+                    type="text"
+                    value={nuevoAcomodoNombre}
+                    onChange={(e) => setNuevoAcomodoNombre(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        manejarGuardarAcomodo();
+                      }
+                    }}
+                    placeholder={
+                      acomodoEnEdicion
+                        ? `Nuevo nombre para "${acomodoEnEdicion.nombre}"`
+                        : 'Nueva opción de acomodo (ej. Tipo Cocktail)'
+                    }
+                    className="flex-1 min-w-[180px] px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-[#1c355e]"
+                  />
+                  <button
+                    type="button"
+                    onClick={manejarGuardarAcomodo}
+                    disabled={crearAcomodoMut.isPending || actualizarAcomodoMut.isPending}
+                    className="rounded-lg bg-[#1c355e] hover:bg-[#152847] px-3 py-1.5 text-xs font-bold text-white cursor-pointer disabled:opacity-50"
+                  >
+                    {acomodoEnEdicion ? 'Renombrar' : 'Agregar'}
+                  </button>
+                  {acomodoEnEdicion && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAcomodoEnEdicion(null);
+                        setNuevoAcomodoNombre('');
+                      }}
+                      className="text-xs font-semibold text-slate-500 hover:underline cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                 <div className="sm:col-span-2">
                   <label
                     htmlFor="campo-acomodo-mobiliario"
@@ -991,29 +1250,21 @@ export function PaginaNuevaReservacion() {
                     maxLength={255}
                     value={acomodoMobiliario}
                     onChange={(e) => setAcomodoMobiliario(e.target.value)}
-                    placeholder="Ej. Auditorio, Tipo Escuela, Herradura / U..."
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-[#1c355e] focus:ring-2 focus:ring-[#1c355e]/15"
+                    placeholder="Ej. Auditorio con 4 mesas al frente y pasillo central"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-[#1c355e] focus:ring-2 focus:ring-[#1c355e]/15"
                   />
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="campo-sillas-panel"
-                    className="block text-[11px] font-bold text-[#1c355e] uppercase tracking-wider mb-1"
-                  >
+                  <label className="block text-[11px] font-bold text-[#1c355e] uppercase tracking-wider mb-1">
                     Sillas para mesa panel
                   </label>
-                  <input
-                    id="campo-sillas-panel"
-                    type="number"
+                  <StepperCantidad
+                    valor={sillasMesaPanel}
                     min={0}
-                    max={500}
-                    value={sillasMesaPanel}
-                    onChange={(e) => {
-                      const n = parseInt(e.target.value, 10);
-                      setSillasMesaPanel(Number.isFinite(n) && n >= 0 ? n : 0);
-                    }}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-[#1c355e] focus:ring-2 focus:ring-[#1c355e]/15"
+                    placeholder="0"
+                    alCambiar={setSillasMesaPanel}
+                    etiqueta="sillas para mesa panel"
                   />
                 </div>
               </div>

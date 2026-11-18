@@ -44,25 +44,48 @@ export async function rutasCatalogos(app: FastifyInstance): Promise<void> {
     },
   );
 
+  async function listarRecursosActivos(bd: ReturnType<typeof obtenerPool>) {
+    const { rows } = await bd.query(
+      `
+      SELECT id, nombre, unidad, es_predefinido
+      FROM reservas_recursos_catalogo
+      WHERE activo = TRUE
+      ORDER BY es_predefinido DESC, nombre ASC
+      `,
+    );
+    return rows.map((r) => ({
+      id: Number(r.id),
+      nombre: String(r.nombre),
+      unidad: String(r.unidad),
+      esPredefinido: Boolean(r.es_predefinido),
+    }));
+  }
+
   app.get(
     '/api/recursos',
     { preHandler: [requerirSesionAprobada] },
     async () => {
       const pool = obtenerPool();
+      let lista = await listarRecursosActivos(pool);
+      if (lista.length === 0) {
+        await pool.query(
+          `UPDATE reservas_recursos_catalogo SET activo = TRUE WHERE es_predefinido = TRUE`,
+        );
+        lista = await listarRecursosActivos(pool);
+      }
+      return lista;
+    },
+  );
+
+  app.get(
+    '/api/recursos/estado-predefinidos',
+    { preHandler: [requerirSesionAprobada] },
+    async () => {
+      const pool = obtenerPool();
       const { rows } = await pool.query(
-        `
-        SELECT id, nombre, unidad, es_predefinido
-        FROM reservas_recursos_catalogo
-        WHERE activo = TRUE
-        ORDER BY es_predefinido DESC, nombre ASC
-        `,
+        `SELECT COUNT(*) AS inactivos FROM reservas_recursos_catalogo WHERE es_predefinido = TRUE AND activo = FALSE`,
       );
-      return rows.map((r) => ({
-        id: Number(r.id),
-        nombre: String(r.nombre),
-        unidad: String(r.unidad),
-        esPredefinido: Boolean(r.es_predefinido),
-      }));
+      return { hayInactivos: Number(rows[0]?.inactivos ?? 0) > 0 };
     },
   );
 
@@ -170,9 +193,6 @@ export async function rutasCatalogos(app: FastifyInstance): Promise<void> {
         if (rows.length === 0 || !rows[0].activo) {
           throw new ErrorApi(404, 'NO_ENCONTRADO', 'Material no encontrado en el catálogo.');
         }
-        if (Boolean(rows[0].es_predefinido)) {
-          throw new ErrorApi(403, 'PROHIBIDO', 'No es posible eliminar un material predefinido del catálogo.');
-        }
 
         await tx.query(
           `UPDATE reservas_recursos_catalogo SET activo = FALSE WHERE id = $1`,
@@ -193,6 +213,184 @@ export async function rutasCatalogos(app: FastifyInstance): Promise<void> {
         });
       }, pool);
 
+      return reply.status(204).send();
+    },
+  );
+
+  const esquemaEliminarLote = z.object({
+    ids: z.array(z.coerce.number().int().positive()).min(1, 'Selecciona al menos un material.'),
+  });
+
+  app.post(
+    '/api/recursos/eliminar-lote',
+    { preHandler: [requerirSesionAprobada] },
+    async (request, reply) => {
+      const { ids } = esquemaEliminarLote.parse(request.body);
+      const usuario = request.usuario!;
+      const pool = obtenerPool();
+
+      await enTransaccion(async (tx) => {
+        const placeholders = ids.map((_, idx) => `$${idx + 1}`).join(', ');
+        await tx.query(
+          `UPDATE reservas_recursos_catalogo SET activo = FALSE WHERE id IN (${placeholders})`,
+          ids,
+        );
+
+        await registrarAuditoria(tx, {
+          actorTipo: 'USUARIO_RESERVAS',
+          actorId: usuario.sub,
+          actorNombre: usuario.nombre,
+          accion: 'recurso.eliminar_lote',
+          entidad: 'reservas_recursos_catalogo',
+          entidadId: ids.join(','),
+          datosDespues: { ids, activo: false },
+          ip: request.ip,
+          userAgent: request.headers['user-agent'] ?? null,
+        });
+      }, pool);
+
+      return reply.status(204).send();
+    },
+  );
+
+  app.post(
+    '/api/recursos/restaurar-predefinidos',
+    { preHandler: [requerirSesionAprobada] },
+    async (request) => {
+      const usuario = request.usuario!;
+      const pool = obtenerPool();
+
+      await enTransaccion(async (tx) => {
+        await tx.query(
+          `UPDATE reservas_recursos_catalogo SET activo = TRUE WHERE es_predefinido = TRUE`,
+        );
+
+        await registrarAuditoria(tx, {
+          actorTipo: 'USUARIO_RESERVAS',
+          actorId: usuario.sub,
+          actorNombre: usuario.nombre,
+          accion: 'recurso.restaurar_predefinidos',
+          entidad: 'reservas_recursos_catalogo',
+          entidadId: 'predefinidos',
+          datosDespues: { activo: true },
+          ip: request.ip,
+          userAgent: request.headers['user-agent'] ?? null,
+        });
+      }, pool);
+
+      return listarRecursosActivos(pool);
+    },
+  );
+
+  // ─── Catálogo de acomodos (reservas_acomodos_catalogo) ─────────
+  const esquemaAcomodo = z.object({
+    nombre: z
+      .string()
+      .trim()
+      .min(1, 'El nombre del acomodo es obligatorio')
+      .max(120, 'El nombre del acomodo es demasiado largo'),
+  });
+
+  app.get(
+    '/api/acomodos',
+    { preHandler: [requerirSesionAprobada] },
+    async () => {
+      const pool = obtenerPool();
+      const { rows } = await pool.query(
+        `
+        SELECT id, nombre
+        FROM reservas_acomodos_catalogo
+        WHERE activo = TRUE
+        ORDER BY id ASC
+        `,
+      );
+      return rows.map((r) => ({
+        id: Number(r.id),
+        nombre: String(r.nombre),
+      }));
+    },
+  );
+
+  app.post(
+    '/api/acomodos',
+    { preHandler: [requerirSesionAprobada] },
+    async (request, reply) => {
+      const body = esquemaAcomodo.parse(request.body);
+      const pool = obtenerPool();
+
+      const { acomodo, creado } = await enTransaccion(async (tx) => {
+        const { rows: existentes } = await tx.query(
+          `SELECT id, nombre, activo FROM reservas_acomodos_catalogo WHERE lower(nombre) = lower($1) LIMIT 1`,
+          [body.nombre],
+        );
+
+        if (existentes.length > 0) {
+          const ex = existentes[0];
+          await tx.query(
+            `UPDATE reservas_acomodos_catalogo SET activo = TRUE, nombre = $2 WHERE id = $1`,
+            [ex.id, body.nombre],
+          );
+          return {
+            acomodo: { id: Number(ex.id), nombre: body.nombre },
+            creado: false,
+          };
+        }
+
+        const ins = await tx.query(
+          `INSERT INTO reservas_acomodos_catalogo (nombre, activo) VALUES ($1, TRUE)`,
+          [body.nombre],
+        );
+        return {
+          acomodo: { id: Number(ins.insertId ?? 0), nombre: body.nombre },
+          creado: true,
+        };
+      }, pool);
+
+      return reply.status(creado ? 201 : 200).send(acomodo);
+    },
+  );
+
+  app.put<{ Params: { id: string } }>(
+    '/api/acomodos/:id',
+    { preHandler: [requerirSesionAprobada] },
+    async (request) => {
+      const idNum = Number(request.params.id);
+      if (!Number.isInteger(idNum) || idNum <= 0) {
+        throw new ErrorApi(400, 'VALIDACION', 'Identificador de acomodo no válido.');
+      }
+      const body = esquemaAcomodo.parse(request.body);
+      const pool = obtenerPool();
+
+      const { rows } = await pool.query(
+        `SELECT id FROM reservas_acomodos_catalogo WHERE id = $1 AND activo = TRUE LIMIT 1`,
+        [idNum],
+      );
+      if (rows.length === 0) {
+        throw new ErrorApi(404, 'NO_ENCONTRADO', 'Opción de acomodo no encontrada.');
+      }
+
+      await pool.query(
+        `UPDATE reservas_acomodos_catalogo SET nombre = $2 WHERE id = $1`,
+        [idNum, body.nombre],
+      );
+
+      return { id: idNum, nombre: body.nombre };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/acomodos/:id',
+    { preHandler: [requerirSesionAprobada] },
+    async (request, reply) => {
+      const idNum = Number(request.params.id);
+      if (!Number.isInteger(idNum) || idNum <= 0) {
+        throw new ErrorApi(400, 'VALIDACION', 'Identificador de acomodo no válido.');
+      }
+      const pool = obtenerPool();
+      await pool.query(
+        `UPDATE reservas_acomodos_catalogo SET activo = FALSE WHERE id = $1`,
+        [idNum],
+      );
       return reply.status(204).send();
     },
   );
