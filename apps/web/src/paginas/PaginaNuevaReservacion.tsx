@@ -492,9 +492,22 @@ export function PaginaNuevaReservacion() {
             </div>
 
             {/* Selector rápido de evento predefinido (plantilla con materiales) */}
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3 flex flex-col sm:flex-row sm:items-center gap-2.5">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <Sparkles className="w-4 h-4 text-[#d99a00] shrink-0" />
+            <div className="rounded-2xl border border-[#1c355e]/15 bg-gradient-to-r from-[#1c355e]/[0.03] via-slate-50/80 to-[#fdbb11]/[0.07] p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-[#1c355e] text-[#fdbb11] shadow-2xs shrink-0">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#1c355e]">
+                    Plantilla rápida de evento
+                  </span>
+                </div>
+                <span className="hidden sm:inline text-[11px] font-medium text-slate-500">
+                  Prellena nombre, tipo y materiales
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <select
                   aria-label="Evento predefinido con materiales"
                   value={plantillaSeleccionadaId}
@@ -504,7 +517,7 @@ export function PaginaNuevaReservacion() {
                     const encontrada = plantillasEvento.find((p) => String(p.id) === val);
                     if (encontrada) aplicarPlantilla(encontrada);
                   }}
-                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-[#1c355e] focus:ring-2 focus:ring-[#1c355e]/15 cursor-pointer"
+                  className="flex-1 min-w-0 px-3.5 py-2 bg-white border border-slate-200/90 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-[#1c355e] focus:ring-4 focus:ring-[#1c355e]/10 transition-all cursor-pointer"
                 >
                   <option value="">Evento personalizado (o elige una plantilla...)</option>
                   {plantillasEvento.map((p) => (
@@ -513,33 +526,33 @@ export function PaginaNuevaReservacion() {
                     </option>
                   ))}
                 </select>
-              </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                {plantillaActual && (
+                <div className="flex items-center gap-2 shrink-0">
+                  {plantillaActual && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPlantillaAEditar(plantillaActual);
+                        setModalPlantillaAbierto(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 py-2 text-xs font-bold text-[#1c355e] shadow-2xs transition-colors cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Editar</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
-                      setPlantillaAEditar(plantillaActual);
+                      setPlantillaAEditar(null);
                       setModalPlantillaAbierto(true);
                     }}
-                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-bold text-[#1c355e] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#1c355e] hover:bg-[#152847] px-3.5 py-2 text-xs font-bold text-white shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Pencil className="w-3.5 h-3.5" />
-                    <span>Editar</span>
+                    <Plus className="w-3.5 h-3.5 text-[#fdbb11]" />
+                    <span>Nueva plantilla</span>
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPlantillaAEditar(null);
-                    setModalPlantillaAbierto(true);
-                  }}
-                  className="inline-flex items-center gap-1 rounded-xl bg-[#1c355e]/10 hover:bg-[#1c355e]/15 px-3 py-1.5 text-xs font-bold text-[#1c355e] cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Nueva plantilla</span>
-                </button>
+                </div>
               </div>
             </div>
 
