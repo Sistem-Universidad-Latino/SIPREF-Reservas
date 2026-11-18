@@ -528,18 +528,14 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // 5) Detalle de una reservación
+  // 5) Detalle de una reservación (cualquier usuario autenticado puede consultar en modo lectura)
   app.get(
     '/api/reservaciones/:id',
     { preHandler: [requerirSesionAprobada] },
     async (request) => {
       const { id } = request.params as { id: string };
       validarUuidParam(id);
-      const { detalle, creadoPorSub } = await obtenerReservacionDetalle(
-        obtenerPool(),
-        id,
-      );
-      verificarPermisoExpediente(request.usuario!, creadoPorSub);
+      const { detalle } = await obtenerReservacionDetalle(obtenerPool(), id);
       return detalle;
     },
   );
@@ -552,8 +548,7 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
       validarUuidParam(id);
       const pool = obtenerPool();
-      const { creadoPorSub } = await obtenerReservacionDetalle(pool, id);
-      verificarPermisoExpediente(request.usuario!, creadoPorSub);
+      await obtenerReservacionDetalle(pool, id);
 
       const { rows } = await pool.query(
         `

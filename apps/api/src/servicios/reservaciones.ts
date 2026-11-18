@@ -116,7 +116,7 @@ export async function obtenerReservacionDetalle(
       r.sillas_mesa_panel,
       r.estado,
       r.creado_por,
-      u_creador.nombre AS creado_por_nombre,
+      COALESCE(u_creador.nombre, r.responsable) AS creado_por_nombre,
       r.creado_en,
       r.actualizado_en,
       r.cancelado_por,
@@ -125,7 +125,7 @@ export async function obtenerReservacionDetalle(
       r.motivo_cancelacion,
       r.version
     FROM reservas_reservaciones r
-    JOIN reservas_usuarios u_creador ON u_creador.google_sub = r.creado_por
+    LEFT JOIN reservas_usuarios u_creador ON u_creador.google_sub = r.creado_por
     LEFT JOIN reservas_usuarios u_cancelador ON u_cancelador.google_sub = r.cancelado_por
     WHERE r.id = $1
     LIMIT 1

@@ -429,14 +429,16 @@ export function PanelExpediente({ reservacionId, alCerrar }: PropiedadesPanelExp
                       <span>Reagendar</span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setMostrarCancelar(true)}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Cancelar reservación</span>
-                  </button>
+                  {(esAdminEspacios || detalle.creadoPor.sub === yo?.sub) && (
+                    <button
+                      type="button"
+                      onClick={() => setMostrarCancelar(true)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Cancelar reservación</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
