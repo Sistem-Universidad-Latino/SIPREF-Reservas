@@ -41,6 +41,8 @@ export interface ReservacionDetalleDto extends ReservacionResumenDto {
   descripcion: string;
   observaciones: string;
   asistentesEstimados: number | null;
+  acomodoMobiliario: string;
+  sillasMesaPanel: number;
   recursos: RecursoAsignadoDto[];
   recordatorios: RecordatorioDto[];
   creadoPor: { sub: string; nombre: string };
@@ -110,6 +112,8 @@ export async function obtenerReservacionDetalle(
       r.descripcion,
       r.observaciones,
       r.asistentes_estimados,
+      r.acomodo_mobiliario,
+      r.sillas_mesa_panel,
       r.estado,
       r.creado_por,
       u_creador.nombre AS creado_por_nombre,
@@ -214,6 +218,8 @@ export async function obtenerReservacionDetalle(
       r.asistentes_estimados !== null && r.asistentes_estimados !== undefined
         ? Number(r.asistentes_estimados)
         : null,
+    acomodoMobiliario: String(r.acomodo_mobiliario ?? ''),
+    sillasMesaPanel: Number(r.sillas_mesa_panel ?? 0),
     recursos,
     recordatorios,
     creadoPor: {

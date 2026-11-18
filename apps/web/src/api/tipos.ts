@@ -150,6 +150,8 @@ export interface ReservacionDetalle extends ReservacionResumen {
   descripcion: string;
   observaciones: string;
   asistentesEstimados: number | null;
+  acomodoMobiliario?: string;
+  sillasMesaPanel?: number;
   recursos: RecursoAsignado[];
   recordatorios: Recordatorio[];
   creadoPor: { sub: string; nombre: string };
@@ -204,6 +206,8 @@ export interface ReservacionEntrada {
   descripcion: string;
   observaciones: string;
   asistentesEstimados: number | null;
+  acomodoMobiliario?: string;
+  sillasMesaPanel?: number;
   recursos: { recursoId: number; cantidad: number }[];
   recordatorios: RecordatorioEntrada[];
 }

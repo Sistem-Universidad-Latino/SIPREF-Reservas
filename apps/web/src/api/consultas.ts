@@ -88,7 +88,7 @@ export const useEspacios = (soloExclusivas = false) =>
   });
 
 export const useRecursos = () =>
-  useQuery({ queryKey: claves.recursos, queryFn: () => api<Recurso[]>('/api/recursos'), staleTime: 5 * 60_000 });
+  useQuery({ queryKey: claves.recursos, queryFn: () => api<Recurso[]>('/api/recursos'), staleTime: 30_000 });
 
 export function useCrearRecurso() {
   const qc = useQueryClient();

@@ -90,6 +90,19 @@ const esquemaCrearReservacion = z.object({
     .nullable()
     .optional()
     .default(null),
+  acomodoMobiliario: z
+    .string()
+    .trim()
+    .max(255, 'El acomodo de mobiliario no puede exceder 255 caracteres')
+    .optional()
+    .default(''),
+  sillasMesaPanel: z.coerce
+    .number()
+    .int()
+    .min(0, 'Las sillas para mesa panel no pueden ser negativas')
+    .max(500, 'Cantidad de sillas para mesa panel no válida')
+    .optional()
+    .default(0),
   recursos: z
     .array(
       z.object({
@@ -399,10 +412,12 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
               descripcion,
               observaciones,
               asistentes_estimados,
+              acomodo_mobiliario,
+              sillas_mesa_panel,
               estado,
               creado_por
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'PROGRAMADA', $14)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'PROGRAMADA', $16)
             `,
             [
               reservacionId,
@@ -418,6 +433,8 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
               body.descripcion || null,
               body.observaciones || null,
               body.asistentesEstimados,
+              body.acomodoMobiliario || null,
+              body.sillasMesaPanel,
               usuario.sub,
             ],
           );
@@ -485,9 +502,20 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
           datosDespues: {
             codigo: detalle.codigo,
             espacioId: detalle.espacioId,
+            espacioNombre: detalle.espacioNombre,
+            tipoEvento: detalle.tipoEvento,
             nombreEvento: detalle.nombreEvento,
             inicio: detalle.inicio,
             fin: detalle.fin,
+            responsable: detalle.responsable,
+            correoResponsable: detalle.correoResponsable,
+            descripcion: detalle.descripcion,
+            recursos: detalle.recursos,
+            acomodoMobiliario: detalle.acomodoMobiliario,
+            sillasMesaPanel: detalle.sillasMesaPanel,
+            creadoPor: usuario.sub,
+            creadoPorNombre: usuario.nombre,
+            creadoEn: detalle.creadoEn,
           },
           ip: request.ip,
           userAgent: request.headers['user-agent'] ?? null,
@@ -551,16 +579,24 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // 7) Reagendar reservación
+  // 7) Reagendar reservación (bloqueado para directores/solicitantes una vez enviada)
   app.patch(
     '/api/reservaciones/:id/reagendar',
     { preHandler: [requerirSesionAprobada] },
     async (request) => {
+      const usuario = request.usuario!;
+      if (usuario.rol !== 'ADMIN_ESPACIOS') {
+        throw new ErrorApi(
+          403,
+          'PROHIBIDO',
+          'No es posible modificar una reservación ya enviada. Contacte a Prefectura.',
+        );
+      }
+
       const { id } = request.params as { id: string };
       validarUuidParam(id);
       const body = esquemaReagendar.parse(request.body);
       const { inicio, fin } = validarRangoHorario(body.inicio, body.fin, true);
-      const usuario = request.usuario!;
       const pool = obtenerPool();
       const cfgSistema = await obtenerConfiguracionSistema(pool);
 

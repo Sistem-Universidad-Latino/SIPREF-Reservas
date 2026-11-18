@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Minus, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Sparkles, Trash2 } from 'lucide-react';
 import { Modal } from './Modal';
+import { StepperCantidad } from './StepperCantidad';
 import {
   useActualizarPlantillaEvento,
   useCrearPlantillaEvento,
@@ -219,25 +220,11 @@ export function ModalPlantillaEvento({
                   </label>
 
                   {marcado && requiereCantidad && (
-                    <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => cambiarCantidad(rec.id, Math.max(1, cant - 1))}
-                        className="px-1.5 py-0.5 text-slate-600 hover:text-[#1c355e] cursor-pointer"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="w-6 text-center text-xs font-extrabold text-[#1c355e]">
-                        {cant}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => cambiarCantidad(rec.id, cant + 1)}
-                        className="px-1.5 py-0.5 text-slate-600 hover:text-[#1c355e] cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
+                    <StepperCantidad
+                      valor={cant}
+                      alCambiar={(n) => cambiarCantidad(rec.id, n)}
+                      etiqueta={rec.nombre}
+                    />
                   )}
                 </div>
               );
