@@ -28,9 +28,14 @@ export async function ejecutarTareasProgramadas(
           rec.canal,
           r.codigo,
           r.nombre_evento,
+          r.tipo_evento,
           r.espacio_nombre,
           r.inicio,
           r.fin,
+          r.responsable,
+          r.acomodo_mobiliario,
+          r.sillas_mesa_panel,
+          r.descripcion,
           r.estado AS estado_reservacion,
           COALESCE(NULLIF(r.correo_responsable, ''), u.correo) AS correo_destino
         FROM reservas_recordatorios rec
@@ -60,9 +65,14 @@ export async function ejecutarTareasProgramadas(
               para: String(rec.correo_destino),
               codigo: String(rec.codigo),
               nombreEvento: String(rec.nombre_evento),
+              tipoEvento: rec.tipo_evento ? String(rec.tipo_evento) : undefined,
               espacioNombre: String(rec.espacio_nombre),
               inicioIso: new Date(rec.inicio).toISOString(),
               finIso: new Date(rec.fin).toISOString(),
+              responsable: rec.responsable ? String(rec.responsable) : undefined,
+              acomodoMobiliario: rec.acomodo_mobiliario ? String(rec.acomodo_mobiliario) : null,
+              sillasMesaPanel: Number(rec.sillas_mesa_panel ?? 0),
+              descripcion: rec.descripcion ? String(rec.descripcion) : null,
             });
           }
           await pool.query(
