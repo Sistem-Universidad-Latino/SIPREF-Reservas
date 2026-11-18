@@ -35,11 +35,12 @@ export async function rutasCatalogos(app: FastifyInstance): Promise<void> {
     },
   );
 
-  app.get(
+  app.get<{ Querystring: { solo_exclusivas?: string } }>(
     '/api/espacios',
     { preHandler: [requerirSesionAprobada] },
-    async () => {
-      return listarEspacios();
+    async (request) => {
+      const soloExclusivas = request.query?.solo_exclusivas === 'true';
+      return listarEspacios(soloExclusivas);
     },
   );
 

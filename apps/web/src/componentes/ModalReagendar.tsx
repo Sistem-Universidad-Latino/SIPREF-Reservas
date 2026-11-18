@@ -9,6 +9,7 @@ import {
 } from '../api/consultas';
 import { esApiError, mensajeDeError } from '../api/cliente';
 import type { Conflicto, DisponibilidadRespuesta, ReservacionDetalle } from '../api/tipos';
+import { esEspacioExclusivoReservas } from '../utilidades/catalogos';
 import {
   calcularDuracion,
   construirIsoMexico,
@@ -31,7 +32,16 @@ export function ModalReagendar({
   reservacion,
   alCompletar,
 }: PropiedadesModalReagendar) {
-  const { data: espacios = [] } = useEspacios();
+  const { data: espaciosRaw = [] } = useEspacios();
+  const espacios = React.useMemo(
+    () =>
+      espaciosRaw.filter(
+        (esp) =>
+          esEspacioExclusivoReservas(esp) ||
+          (reservacion !== null && esp.id === reservacion.espacioId),
+      ),
+    [espaciosRaw, reservacion],
+  );
   const { data: config } = useConfiguracion();
   const reagendarMut = useReagendarReservacion();
   const toast = useToast();

@@ -66,6 +66,20 @@ export const LISTA_TIPOS_EVENTO: InfoTipoEvento[] = [
   CATALOGO_TIPOS_EVENTO.OTRO,
 ];
 
+export function esEspacioExclusivoReservas(esp: {
+  nombre: string;
+  esExclusivaReservas?: boolean;
+  es_exclusiva_reservas?: boolean;
+}): boolean {
+  if (typeof esp.esExclusivaReservas === 'boolean') {
+    return esp.esExclusivaReservas;
+  }
+  if (typeof esp.es_exclusiva_reservas === 'boolean') {
+    return esp.es_exclusiva_reservas;
+  }
+  return /jardin|audiovisual/i.test(esp.nombre);
+}
+
 export function obtenerInfoTipoEvento(tipo: string): InfoTipoEvento {
   const clave = String(tipo || '').trim().toUpperCase();
   if (clave in CATALOGO_TIPOS_EVENTO) {

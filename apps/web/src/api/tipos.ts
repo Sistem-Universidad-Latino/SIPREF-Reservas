@@ -69,6 +69,8 @@ export interface Espacio {
   capacidad: number;
   tipo: string;
   edificio: string;
+  esExclusivaReservas?: boolean;
+  es_exclusiva_reservas?: boolean;
 }
 
 export interface Recurso {

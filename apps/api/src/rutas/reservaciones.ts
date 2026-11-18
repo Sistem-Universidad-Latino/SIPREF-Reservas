@@ -316,6 +316,19 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
             { campos: { espacioId: 'Espacio no encontrado en SIPREF' } },
           );
         }
+        if (!espacio.esExclusivaReservas) {
+          throw new ErrorApi(
+            400,
+            'VALIDACION',
+            'Este espacio no está habilitado como zona exclusiva para reservaciones.',
+            {
+              campos: {
+                espacioId:
+                  'Este espacio no está habilitado como zona exclusiva para reservaciones.',
+              },
+            },
+          );
+        }
 
         // Candado transaccional por espacio (serializa concurrencia sobre el mismo espacio)
         await adquirirCandadoEspacio(tx, espacio.id);
@@ -593,6 +606,23 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
             'VALIDACION',
             'El espacio seleccionado no existe o no está activo en SIPREF.',
             { campos: { espacioId: 'Espacio no encontrado en SIPREF' } },
+          );
+        }
+        if (
+          body.espacioId &&
+          body.espacioId !== String(actual.espacio_id) &&
+          !espacio.esExclusivaReservas
+        ) {
+          throw new ErrorApi(
+            400,
+            'VALIDACION',
+            'Este espacio no está habilitado como zona exclusiva para reservaciones.',
+            {
+              campos: {
+                espacioId:
+                  'Este espacio no está habilitado como zona exclusiva para reservaciones.',
+              },
+            },
           );
         }
 

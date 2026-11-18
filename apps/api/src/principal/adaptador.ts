@@ -20,6 +20,8 @@ export interface EspacioPrincipal {
   capacidad: number;
   tipo: string;
   edificio: string;
+  esExclusivaReservas: boolean;
+  es_exclusiva_reservas: boolean;
 }
 
 export interface EventoOcupacionPrincipal {
@@ -43,27 +45,36 @@ export interface FiltroOcupacionPrincipal {
  * Lista todos los espacios activos registrados en SIPREF principal (`aulas`).
  */
 export async function listarEspacios(
+  soloExclusivas = false,
   bd: ClienteBd = obtenerPool(),
 ): Promise<EspacioPrincipal[]> {
+  const filtroExclusivas = soloExclusivas ? 'AND es_exclusiva_reservas = 1' : '';
   const sql = `
     SELECT
       id,
       nombre,
       capacidad,
-      edificio
+      edificio,
+      es_exclusiva_reservas
     FROM ${TABLA_PRINCIPAL_ESPACIOS}
     WHERE estado = 'Activo'
       AND (en_mantenimiento IS NULL OR en_mantenimiento = 0)
+      ${filtroExclusivas}
     ORDER BY nombre ASC
   `;
   const { rows } = await bd.query(sql);
-  return rows.map((r) => ({
-    id: String(r.id),
-    nombre: String(r.nombre),
-    capacidad: Number(r.capacidad ?? 0),
-    tipo: '',
-    edificio: String(r.edificio ?? '').trim(),
-  }));
+  return rows.map((r) => {
+    const exclusiva = Boolean(r.es_exclusiva_reservas);
+    return {
+      id: String(r.id),
+      nombre: String(r.nombre),
+      capacidad: Number(r.capacidad ?? 0),
+      tipo: '',
+      edificio: String(r.edificio ?? '').trim(),
+      esExclusivaReservas: exclusiva,
+      es_exclusiva_reservas: exclusiva,
+    };
+  });
 }
 
 /**
@@ -78,7 +89,8 @@ export async function obtenerEspacio(
       id,
       nombre,
       capacidad,
-      edificio
+      edificio,
+      es_exclusiva_reservas
     FROM ${TABLA_PRINCIPAL_ESPACIOS}
     WHERE (CAST(id AS CHAR) = $1 OR nombre = $1)
       AND estado = 'Activo'
@@ -87,12 +99,15 @@ export async function obtenerEspacio(
   const { rows } = await bd.query(sql, [id]);
   if (rows.length === 0) return null;
   const r = rows[0];
+  const exclusiva = Boolean(r.es_exclusiva_reservas);
   return {
     id: String(r.id),
     nombre: String(r.nombre),
     capacidad: Number(r.capacidad ?? 0),
     tipo: '',
     edificio: String(r.edificio ?? '').trim(),
+    esExclusivaReservas: exclusiva,
+    es_exclusiva_reservas: exclusiva,
   };
 }
 

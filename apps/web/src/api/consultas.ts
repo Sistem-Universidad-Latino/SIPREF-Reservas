@@ -79,8 +79,13 @@ export const useConfiguracion = () =>
     staleTime: 10 * 60_000,
   });
 
-export const useEspacios = () =>
-  useQuery({ queryKey: claves.espacios, queryFn: () => api<Espacio[]>('/api/espacios'), staleTime: 5 * 60_000 });
+export const useEspacios = (soloExclusivas = false) =>
+  useQuery({
+    queryKey: [...claves.espacios, soloExclusivas ? 'exclusivas' : 'todas'],
+    queryFn: () =>
+      api<Espacio[]>(`/api/espacios${soloExclusivas ? '?solo_exclusivas=true' : ''}`),
+    staleTime: 5 * 60_000,
+  });
 
 export const useRecursos = () =>
   useQuery({ queryKey: claves.recursos, queryFn: () => api<Recurso[]>('/api/recursos'), staleTime: 5 * 60_000 });

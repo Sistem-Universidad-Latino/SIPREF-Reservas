@@ -42,7 +42,10 @@ import type {
 } from '../api/tipos';
 import { Modal } from '../componentes/Modal';
 import { ModalPlantillaEvento } from '../componentes/ModalPlantillaEvento';
-import { OPCIONES_UNIDAD_ANTICIPACION } from '../utilidades/catalogos';
+import {
+  esEspacioExclusivoReservas,
+  OPCIONES_UNIDAD_ANTICIPACION,
+} from '../utilidades/catalogos';
 import {
   calcularDuracion,
   construirIsoMexico,
@@ -70,7 +73,11 @@ export function PaginaNuevaReservacion() {
 
   const { data: yo } = useYo();
   const { data: config } = useConfiguracion();
-  const { data: espacios = [] } = useEspacios();
+  const { data: espaciosRaw = [] } = useEspacios(true);
+  const espacios = useMemo(
+    () => espaciosRaw.filter(esEspacioExclusivoReservas),
+    [espaciosRaw],
+  );
   const { data: recursosCatalogo = [] } = useRecursos();
   const { data: plantillasEvento = [] } = usePlantillasEvento();
 
