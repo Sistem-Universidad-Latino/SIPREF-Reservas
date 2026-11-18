@@ -1,6 +1,7 @@
 import { cerrarPool, obtenerPool } from './bd/pool.js';
 import { obtenerConfig } from './config.js';
 import { construirApp } from './app.js';
+import { ejecutarTareasProgramadas } from './servicios/tareas.js';
 
 async function iniciar(): Promise<void> {
   const cfg = obtenerConfig();
@@ -30,6 +31,14 @@ async function iniciar(): Promise<void> {
     { port: cfg.PORT, env: cfg.NODE_ENV },
     'Servidor SIPREF Reservas API escuchando',
   );
+
+  // Ciclo periódico cada 60s para enviar recordatorios vencidos en UTC
+  const intervaloTareas = setInterval(() => {
+    void ejecutarTareasProgramadas(pool).catch((err) => {
+      app.log.warn({ err }, 'Error en ciclo periódico de recordatorios');
+    });
+  }, 60_000);
+  intervaloTareas.unref?.();
 }
 
 iniciar().catch((err) => {

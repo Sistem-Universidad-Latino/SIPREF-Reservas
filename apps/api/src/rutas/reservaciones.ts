@@ -26,6 +26,50 @@ import {
   obtenerReservacionDetalle,
   verificarPermisoExpediente,
 } from '../servicios/reservaciones.js';
+import { ejecutarTareasProgramadas } from '../servicios/tareas.js';
+
+const URL_NOTIFICACIONES_SIPREF =
+  'https://sistema-ula.onrender.com/api/eventos-aulas/notificaciones-activas';
+
+function notificarWorkerSipref(): void {
+  void fetch(URL_NOTIFICACIONES_SIPREF, {
+    method: 'GET',
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => {
+    // Ejecución silenciosa en segundo plano
+  });
+  void ejecutarTareasProgramadas().catch(() => {
+    // Ejecución silenciosa en segundo plano
+  });
+}
+
+function dispararProcesamientoRecordatorios(
+  recordatorios: Array<{ enviarEn: string }> = [],
+): void {
+  notificarWorkerSipref();
+
+  const ahoraMs = Date.now();
+  for (const rec of recordatorios) {
+    const enviarMs = new Date(rec.enviarEn).getTime();
+    if (!Number.isFinite(enviarMs)) continue;
+    const esperaMs = enviarMs - ahoraMs;
+    if (esperaMs > 0 && esperaMs <= 60 * 60_000) {
+      const timer = setTimeout(() => {
+        notificarWorkerSipref();
+      }, esperaMs + 1_000);
+      timer.unref?.();
+    }
+  }
+}
+
+function normalizarIsoMerida(iso: string): string {
+  const limpio = iso.trim();
+  if (/(?:Z|[+-]\d{2}:\d{2})$/i.test(limpio)) {
+    return limpio;
+  }
+  const conT = limpio.includes('T') ? limpio : limpio.replace(' ', 'T');
+  return `${conT}-06:00`;
+}
 
 const esquemaFiltrosListado = z.object({
   q: z.string().optional(),
@@ -145,8 +189,8 @@ function validarRangoHorario(
   finIso: string,
   exigirFuturo: boolean,
 ): { inicio: Date; fin: Date } {
-  const inicio = new Date(inicioIso);
-  const fin = new Date(finIso);
+  const inicio = new Date(normalizarIsoMerida(inicioIso));
+  const fin = new Date(normalizarIsoMerida(finIso));
 
   if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) {
     throw new ErrorApi(
@@ -429,7 +473,7 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
               inicio,
               fin,
               body.responsable,
-              body.correoResponsable || null,
+              body.correoResponsable?.trim() || usuario.correo,
               body.descripcion || null,
               body.observaciones || null,
               body.asistentesEstimados,
@@ -524,6 +568,7 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
         return detalle;
       }, pool);
 
+      dispararProcesamientoRecordatorios(detalleCreado.recordatorios);
       return reply.status(201).send(detalleCreado);
     },
   );
@@ -595,7 +640,7 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
       const pool = obtenerPool();
       const cfgSistema = await obtenerConfiguracionSistema(pool);
 
-      return enTransaccion(async (tx) => {
+      const actualizada = await enTransaccion(async (tx) => {
         const { rows: actuales } = await tx.query(
           `
           SELECT id, espacio_id, espacio_nombre, inicio, fin, estado, creado_por, version
@@ -747,6 +792,8 @@ export async function rutasReservaciones(app: FastifyInstance): Promise<void> {
         const { detalle } = await obtenerReservacionDetalle(tx, id);
         return detalle;
       }, pool);
+      dispararProcesamientoRecordatorios(actualizada.recordatorios);
+      return actualizada;
     },
   );
 
