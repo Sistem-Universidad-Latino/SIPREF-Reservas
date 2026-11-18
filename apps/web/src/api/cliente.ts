@@ -115,3 +115,26 @@ export function mensajeDeError(e: unknown): string {
   if (e instanceof Error) return e.message;
   return 'Ocurrió un error inesperado.';
 }
+
+/** Verifica si el backend en Render ya respondió con JSON válido (evita pantalla de arranque en frío). */
+export async function pingSalud(): Promise<boolean> {
+  if (usarMocks()) return true;
+  try {
+    const resp = await fetch('/api/salud', { cache: 'no-store' });
+    const ct = resp.headers.get('content-type') ?? '';
+    return resp.ok && ct.includes('application/json');
+  } catch {
+    return false;
+  }
+}
+
+/** Espera hasta que el backend responda /api/salud en JSON antes de redirigir al flujo OAuth. */
+export async function esperarServidorActivo(maxEsperaMs = 65_000): Promise<boolean> {
+  if (usarMocks()) return true;
+  const inicio = Date.now();
+  while (Date.now() - inicio < maxEsperaMs) {
+    if (await pingSalud()) return true;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return false;
+}

@@ -10,7 +10,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { salir, useEstadoSolicitud } from '../api/consultas';
-import { esApiError, usarMocks } from '../api/cliente';
+import { esApiError, esperarServidorActivo, usarMocks } from '../api/cliente';
 import { formatearFechaHora } from '../utilidades/fechas';
 import { obtenerEtiquetaRol } from '../utilidades/catalogos';
 import { activarSesionGoogleMock } from '../mocks/servidorMock';
@@ -58,13 +58,14 @@ export function PaginaEstadoAcceso() {
     }
   };
 
-  const manejarIniciarGoogle = () => {
+  const manejarIniciarGoogle = async () => {
     if (usarMocks()) {
       activarSesionGoogleMock();
       queryClient.clear();
       navigate('/calendario');
       return;
     }
+    await esperarServidorActivo();
     window.location.href = '/api/auth/google/iniciar';
   };
 

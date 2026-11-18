@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ShieldCheck } from 'lucide-react';
-import { usarMocks } from '../api/cliente';
+import { AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
+import { esperarServidorActivo, pingSalud, usarMocks } from '../api/cliente';
 import { activarSesionGoogleMock } from '../mocks/servidorMock';
 import logoUlatino from '../assets/logo.png';
 
@@ -32,6 +33,19 @@ export function PaginaIngresar() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [servidorListo, setServidorListo] = useState(() => usarMocks());
+  const [conectando, setConectando] = useState(false);
+
+  useEffect(() => {
+    if (usarMocks()) return;
+    let activo = true;
+    void pingSalud().then((ok) => {
+      if (activo && ok) setServidorListo(true);
+    });
+    return () => {
+      activo = false;
+    };
+  }, []);
 
   const paramError = searchParams.get('error');
   const mensajeErrorOAuth =
@@ -41,12 +55,16 @@ export function PaginaIngresar() {
         ? 'No fue posible iniciar sesión con Google. Intenta de nuevo.'
         : null;
 
-  const manejarContinuarConGoogle = () => {
+  const manejarContinuarConGoogle = async () => {
     if (usarMocks()) {
       const estado = activarSesionGoogleMock();
       queryClient.clear();
       navigate(estado === 'APROBADA' ? '/calendario' : '/acceso/estado');
       return;
+    }
+    if (!servidorListo) {
+      setConectando(true);
+      await esperarServidorActivo();
     }
     window.location.href = '/api/auth/google/iniciar';
   };
@@ -89,11 +107,21 @@ export function PaginaIngresar() {
             <div className="space-y-3">
               <button
                 type="button"
+                disabled={conectando}
                 onClick={manejarContinuarConGoogle}
-                className="flex w-full items-center justify-center gap-3 rounded-xl border border-borde bg-white px-5 py-3 text-sm font-semibold text-texto shadow-sm transition hover:bg-slate-50 hover:border-navy/30 active:bg-slate-100"
+                className="flex w-full items-center justify-center gap-3 rounded-xl border border-borde bg-white px-5 py-3 text-sm font-semibold text-texto shadow-sm transition hover:bg-slate-50 hover:border-navy/30 active:bg-slate-100 disabled:cursor-wait disabled:opacity-80"
               >
-                <IconoGoogle />
-                <span>Continuar con Google</span>
+                {conectando ? (
+                  <>
+                    <Loader2 className="h-5 w-5 shrink-0 animate-spin text-navy" />
+                    <span>Conectando con el servidor...</span>
+                  </>
+                ) : (
+                  <>
+                    <IconoGoogle />
+                    <span>Continuar con Google</span>
+                  </>
+                )}
               </button>
 
               <div className="flex items-center justify-center gap-2 text-xs text-texto-suave pt-1">
