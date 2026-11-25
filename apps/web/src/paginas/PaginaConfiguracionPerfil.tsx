@@ -4,15 +4,14 @@ import {
   AlertTriangle,
   ArrowLeft,
   BadgeCheck,
+  Building2,
   Mail,
   Save,
-  ShieldCheck,
   Trash2,
   User,
 } from 'lucide-react';
 import { useActualizarPerfil, useEliminarCuenta, useYo } from '../api/consultas';
 import { mensajeDeError } from '../api/cliente';
-import { obtenerEtiquetaRol } from '../utilidades/catalogos';
 import { useToast } from '../componentes/Toast';
 
 export function PaginaConfiguracionPerfil() {
@@ -89,54 +88,55 @@ export function PaginaConfiguracionPerfil() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Columna izquierda: Tarjeta de resumen del usuario */}
-        <div className="bg-white rounded-2xl border border-[#c5c6cf]/40 shadow-sm overflow-hidden flex flex-col justify-between">
-          <div>
-            <div className="h-20 bg-gradient-to-r from-[#244275] to-[#1c355e] relative">
-              <div className="absolute -bottom-10 left-6">
-                {yo.fotoUrl ? (
-                  <img
-                    src={yo.fotoUrl}
-                    alt={yo.nombre}
-                    referrerPolicy="no-referrer"
-                    className="h-20 w-20 rounded-full object-cover border-4 border-white shadow-md"
-                  />
-                ) : (
-                  <div className="h-20 w-20 rounded-full bg-[#0e2045] text-white flex items-center justify-center border-4 border-white shadow-md text-xl font-bold uppercase">
-                    {iniciales || 'UL'}
-                  </div>
-                )}
-              </div>
+        <div className="bg-white rounded-2xl border border-[#c5c6cf]/40 shadow-sm overflow-hidden">
+          <div className="h-24 bg-gradient-to-br from-[#1c355e] via-[#244275] to-[#0e2045] border-b-2 border-[#fdbb11] relative">
+            <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 lg:left-6 lg:translate-x-0">
+              {yo.fotoUrl ? (
+                <img
+                  src={yo.fotoUrl}
+                  alt={yo.nombre}
+                  referrerPolicy="no-referrer"
+                  className="h-20 w-20 rounded-full object-cover border-4 border-white shadow-md bg-white"
+                />
+              ) : (
+                <div className="h-20 w-20 rounded-full bg-[#0e2045] text-white flex items-center justify-center border-4 border-white shadow-md text-xl font-bold uppercase">
+                  {iniciales || 'UL'}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-12 px-6 pb-6 space-y-5 text-center lg:text-left">
+            <div className="pt-2">
+              <h2 className="text-lg font-bold text-[#1b1c1e] leading-snug">
+                {yo.nombre}
+              </h2>
+              <p className="text-xs text-slate-500 truncate mt-0.5">{yo.correo}</p>
             </div>
 
-            <div className="pt-12 px-6 pb-6 space-y-4">
-              <div>
-                <h2 className="text-lg font-bold text-[#1b1c1e] leading-snug">
-                  {yo.nombre}
-                </h2>
-                <p className="text-xs text-slate-500 truncate mt-0.5">{yo.correo}</p>
-              </div>
+            <div className="flex flex-wrap justify-center lg:justify-start gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
+                <BadgeCheck className="h-3.5 w-3.5" />
+                Acceso Aprobado
+              </span>
+            </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fdbb11]/20 border border-[#fdbb11]/50 px-3 py-1 text-xs font-bold text-[#0e2045]">
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#b45309]" />
-                  {obtenerEtiquetaRol(yo.rol)}
+            <div className="border-t border-slate-100 pt-4 space-y-3 text-xs">
+              <div className="flex items-center justify-between text-slate-600">
+                <span className="flex items-center gap-1.5 font-medium text-slate-500">
+                  <Mail className="h-3.5 w-3.5 text-slate-400" />
+                  Autenticación
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
-                  <BadgeCheck className="h-3.5 w-3.5" />
-                  Acceso Aprobado
-                </span>
+                <span className="font-semibold text-[#1c355e]">Google OAuth</span>
               </div>
-
-              <div className="border-t border-slate-100 pt-4 text-xs">
-                <div className="flex items-center justify-between text-slate-600">
-                  <span className="flex items-center gap-1.5 font-medium">
-                    <Mail className="h-3.5 w-3.5 text-slate-400" />
-                    Autenticación
-                  </span>
-                  <span className="font-semibold text-slate-700">Google OAuth</span>
-                </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span className="flex items-center gap-1.5 font-medium text-slate-500">
+                  <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                  Institución
+                </span>
+                <span className="font-semibold text-slate-700">Universidad Latino</span>
               </div>
             </div>
           </div>
@@ -202,8 +202,12 @@ export function PaginaConfiguracionPerfil() {
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
-                  disabled={actualizarPerfilMut.isPending}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#fdbb11] to-[#e8a906] px-6 py-2.5 text-sm font-black text-[#0e2045] shadow-md shadow-[#fdbb11]/20 transition hover:brightness-105 disabled:opacity-50"
+                  disabled={
+                    actualizarPerfilMut.isPending ||
+                    nombre.trim().length < 2 ||
+                    nombre.trim() === yo.nombre.trim()
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#fdbb11] to-[#e8a906] px-6 py-2.5 text-sm font-black text-[#0e2045] shadow-md shadow-[#fdbb11]/20 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
                   <span>
@@ -215,11 +219,11 @@ export function PaginaConfiguracionPerfil() {
           </div>
 
           {/* Zona de peligro: Eliminar Cuenta */}
-          <div className="bg-white rounded-2xl border border-rose-200 shadow-sm p-6 sm:p-8">
-            <div className="flex items-start justify-between gap-4">
+          <div className="bg-white rounded-2xl border border-rose-200/80 shadow-sm p-6 sm:p-7">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h3 className="text-base font-bold text-rose-700 flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-rose-600" />
+                  <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
                   Eliminar cuenta
                 </h3>
                 <p className="text-xs text-slate-600 mt-1 max-w-xl leading-relaxed">
@@ -230,7 +234,7 @@ export function PaginaConfiguracionPerfil() {
               <button
                 type="button"
                 onClick={() => setMostrarModalEliminar(true)}
-                className="shrink-0 inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100"
+                className="shrink-0 self-start sm:self-center inline-flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100"
               >
                 <Trash2 className="h-4 w-4" />
                 <span>Eliminar cuenta</span>
